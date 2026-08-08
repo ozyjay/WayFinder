@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "extension"
+  ],
+  "scripts": {
+    "compile": "npm run compile --workspace=@wayfinder/extension",
+    "test": "npm run test --workspace=@wayfinder/extension"
+  }
+}
+

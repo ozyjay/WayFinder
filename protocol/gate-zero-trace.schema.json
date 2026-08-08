@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wayfinder.local/protocol/gate-zero-trace.schema.json",
+  "title": "WayFinder Gate 0 trace entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "requestNumber",
+    "messageCount",
+    "textPartCount",
+    "toolCallCount",
+    "toolResultCount",
+    "virtualModel",
+    "backend",
+    "routingReason",
+    "responseType",
+    "latencyMs",
+    "backendMode"
+  ],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "requestNumber": { "type": "integer", "minimum": 1 },
+    "messageCount": { "type": "integer", "minimum": 0 },
+    "textPartCount": { "type": "integer", "minimum": 0 },
+    "toolCallCount": { "type": "integer", "minimum": 0 },
+    "toolResultCount": { "type": "integer", "minimum": 0 },
+    "virtualModel": { "enum": ["wayfinder-auto", "wayfinder-fast", "wayfinder-deep"] },
+    "backend": { "enum": ["fast", "deep"] },
+    "routingReason": { "type": "string", "maxLength": 280 },
+    "responseType": { "enum": ["text", "tool-call", "empty", "error"] },
+    "latencyMs": { "type": "integer", "minimum": 0 },
+    "backendMode": { "enum": ["mock", "modeldeck"] },
+    "errorCode": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+  }
+}

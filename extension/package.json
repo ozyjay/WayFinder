@@ -1,0 +1,83 @@
+{
+  "name": "@wayfinder/extension",
+  "displayName": "WayFinder",
+  "description": "A local, trajectory-aware language-model routing research POC.",
+  "version": "0.1.0",
+  "publisher": "wayfinder-research",
+  "files": [
+    "dist/**",
+    "package.json"
+  ],
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "wayfinder",
+        "displayName": "WayFinder",
+        "managementCommand": "wayfinder.configureModelDeck"
+      }
+    ],
+    "commands": [
+      {
+        "command": "wayfinder.configureModelDeck",
+        "title": "WayFinder: Configure ModelDeck"
+      },
+      {
+        "command": "wayfinder.showTrace",
+        "title": "WayFinder: Show Gate 0 Trace"
+      },
+      {
+        "command": "wayfinder.clearTrace",
+        "title": "WayFinder: Clear Gate 0 Trace"
+      }
+    ],
+    "configuration": {
+      "title": "WayFinder",
+      "properties": {
+        "wayfinder.backendMode": {
+          "type": "string",
+          "enum": ["mock", "modeldeck"],
+          "default": "mock",
+          "description": "Use deterministic local mock responses for Gate 0, or send requests to a ModelDeck OpenAI-compatible endpoint."
+        },
+        "wayfinder.modelDeck.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000/v1",
+          "description": "Base URL of the local ModelDeck OpenAI-compatible API."
+        },
+        "wayfinder.modelDeck.fastModel": {
+          "type": "string",
+          "default": "fast-local",
+          "description": "ModelDeck model identifier used by WayFinder Fast."
+        },
+        "wayfinder.modelDeck.deepModel": {
+          "type": "string",
+          "default": "deep-local",
+          "description": "ModelDeck model identifier used by WayFinder Deep."
+        },
+        "wayfinder.trace.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Record privacy-preserving Gate 0 routing metadata in a local JSONL trace."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "npm run compile && node --test dist/test/**/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.109.0",
+    "typescript": "^5.8.3"
+  }
+}
