@@ -46,7 +46,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `wayfinder.backendMode` | `mock` | Use deterministic mock replies or the local ModelDeck adapter. |
-| `wayfinder.modelDeck.baseUrl` | `http://127.0.0.1:8000/v1` | OpenAI-compatible local API base URL. |
+| `wayfinder.modelDeck.baseUrl` | `http://127.0.0.1:8600/v1` | OpenAI-compatible local API base URL. |
 | `wayfinder.modelDeck.fastModel` | `fast-local` | Configured fast backend model ID. |
 | `wayfinder.modelDeck.deepModel` | `deep-local` | Configured deep backend model ID. |
 | `wayfinder.trace.enabled` | `true` | Enable local privacy-preserving Gate 0 traces. |

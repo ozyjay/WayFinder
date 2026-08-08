@@ -112,7 +112,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
 
   private modelDeckSettings(): ModelDeckSettings {
     return {
-      baseUrl: this.configuration.get<string>('modelDeck.baseUrl', 'http://127.0.0.1:8000/v1'),
+      baseUrl: this.configuration.get<string>('modelDeck.baseUrl', 'http://127.0.0.1:8600/v1'),
       fastModel: this.configuration.get<string>('modelDeck.fastModel', 'fast-local'),
       deepModel: this.configuration.get<string>('modelDeck.deepModel', 'deep-local'),
     };
