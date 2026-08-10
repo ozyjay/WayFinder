@@ -47,6 +47,43 @@ The exact number of supplied messages may vary. The required evidence is that th
 - A semantic phase transition, capability assessment, or human-centred explanation.
 - Complete interception of arbitrary integrated-terminal activity.
 
+## Observed result
+
+The local Extension Development Host trial on 10 August 2026 demonstrated the provider feasibility mechanism. One `WayFinder Auto` session recorded the following relevant sequence in its local trace:
+
+```text
+toolResultCount=0  backend=fast  responseType=tool-call
+toolResultCount=1  backend=deep  responseType=text
+toolResultCount=2  backend=deep  responseType=tool-call
+toolResultCount=3  backend=fast  responseType=text
+```
+
+VS Code executed the structured tool calls and supplied correlated results to later provider invocations. This is a **Pass** for the Gate 0 feasibility question: a stable virtual model can switch Fast → Deep → Fast while VS Code retains the tool loop.
+
+The trial also identified operational limitations that are outside the pass criterion:
+
+- A large Agent-mode prompt and tool catalogue can consume most of a small model's available context before the user request is considered.
+- ModelDeck's default 32-token output budget truncated longer tool-call JSON. The provider now sends an explicit output-token budget.
+- Repeated failing tool calls can create a loop and eventually leave local ModelDeck backends unavailable. Gate 0 has no loop-control policy yet.
+
+## Next research task — observability and tool-surface debugging
+
+The next task is to improve WayFinder's privacy-preserving logging and debugging capabilities before introducing a more sophisticated routing policy. The objective is to make context pressure, tool availability, malformed calls, retries, backend failures, and loop behaviour explainable from structured evidence.
+
+The implementation should record metadata only, never prompts, source contents, tool arguments, tool results, terminal output, environment variables, credentials, or raw filenames. Proposed fields include:
+
+- observed request and response metadata: supplied and forwarded tool counts, tool names, tool-schema byte counts, response finish category, structured-call count, latency, and coarse backend error code;
+- deterministic derivations: request-size and token estimates, remaining budget, and repeated-call fingerprints derived from canonicalised calls without retaining their arguments;
+- routing-policy decisions: selected backend, forwarded-tool subset, escalation, retry, loop-stop, and termination reasons.
+
+The trace schema and this protocol must be updated together when those fields are implemented. Tool names or fingerprints must be reviewed as metadata for the privacy model and must not become a route for recording source or user content.
+
+This task investigates the following research hypothesis:
+
+> Routing models without also routing their context and tool surface is incomplete.
+
+A useful local routing policy may need to account for a backend's context budget, tool-call capability, available tool schemas, request/output budgets, and loop state—not just choose a model ID. This is not yet a decision to replace VS Code's agent loop with a WayFinder-owned harness. The existing provider remains the preferred test bed while tool-surface mediation and diagnostics are evaluated.
+
 ## Result record
 
 Record the experiment as one of:
@@ -56,4 +93,3 @@ Record the experiment as one of:
 - **Fail** — the virtual provider cannot participate in the desired agent loop.
 
 For a Partial or Fail result, retain the trace and errors, then evaluate the chat-participant fallback. A participant can own the interaction flow, but would require WayFinder to implement the agent harness responsibilities that the provider approach intentionally leaves with VS Code.
-

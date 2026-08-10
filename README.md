@@ -55,7 +55,11 @@ No token, API key, or model identity is hard-coded. The supplied URL and model I
 
 ## Feasibility status
 
-The public API supports the **mechanism**: multiple virtual models, request-history access, structured tool-call responses, structured tool-result inputs, and per-request provider execution. It does not itself guarantee that every VS Code Chat distribution or organisation policy will expose local providers in every agent experience. In particular, the provider guide notes that organisations can disable bring-your-own-key models through Copilot policy. Gate 0 is therefore **implemented but not passed** until it is run in the intended VS Code build with a local backend and its trace is inspected.
+The public API supports the **mechanism**: multiple virtual models, request-history access, structured tool-call responses, structured tool-result inputs, and per-request provider execution. A local Extension Development Host trial has now demonstrated the Gate 0 Fast → Deep → Fast sequence while VS Code retained tool execution. The provider mechanism therefore passed Gate 0 in that environment; the captured trace remains the experiment artefact.
+
+The trial also showed that model routing alone is insufficient for small local models. Copilot Agent mode can supply a large instruction set and tool catalogue, and malformed or repeated tool calls can create runaway loops. The next research task is privacy-preserving observability and tool-surface debugging: measure request and tool metadata, explain routing decisions, and identify truncation, retry, and loop behaviour without recording prompts, source contents, tool arguments, or tool results. See [the Gate 0 protocol](docs/gate-0.md) for the recorded result and scoped follow-up.
+
+This does not guarantee that every VS Code Chat distribution or organisation policy will expose local providers in every agent experience. In particular, the provider guide notes that organisations can disable bring-your-own-key models through Copilot policy.
 
 If the real trial does not return tool results to a subsequent provider call, the documented fallback is a WayFinder chat participant. That would make WayFinder own tool selection, invocation, approvals, cancellation, conversation/history construction, edits, terminal/task integration, and result presentation. This is deliberately not implemented before the provider experiment fails, because it would no longer preserve VS Code's normal agent loop.
 
