@@ -39,7 +39,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
     let responseType: TraceEntry['responseType'] = 'empty';
     let errorCode: string | undefined;
     try {
-      const response = await this.complete(decision.backend, messages, options, token);
+      const response = await this.complete(decision.backend, messages, options, model.maxOutputTokens, token);
       if (response.text) {
         progress.report(new vscode.LanguageModelTextPart(response.text));
         responseType = 'text';
@@ -83,6 +83,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
     backend: BackendId,
     messages: readonly vscode.LanguageModelChatRequestMessage[],
     options: vscode.ProvideLanguageModelChatResponseOptions,
+    maxOutputTokens: number,
     token: vscode.CancellationToken,
   ): Promise<{ text: string; toolCalls: readonly OpenAiToolCall[] }> {
     if (this.backendMode() === 'mock') {
@@ -100,6 +101,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
           function: { name: tool.name, description: tool.description, parameters: tool.inputSchema ?? { type: 'object' } },
         })),
         toolChoice: options.toolMode === vscode.LanguageModelChatToolMode.Required ? 'required' : 'auto',
+        maxTokens: maxOutputTokens,
       }, controller.signal);
     } finally {
       cancellation.dispose();

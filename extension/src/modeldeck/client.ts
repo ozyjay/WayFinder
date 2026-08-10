@@ -21,6 +21,7 @@ export interface ModelDeckRequest {
   readonly messages: readonly OpenAiMessage[];
   readonly tools?: readonly { type: 'function'; function: { name: string; description: string; parameters: object } }[];
   readonly toolChoice: 'auto' | 'required';
+  readonly maxTokens: number;
 }
 
 export interface ModelDeckResponse {
@@ -48,6 +49,7 @@ export class ModelDeckClient {
         messages: request.messages,
         tools: request.tools,
         tool_choice: request.tools?.length ? request.toolChoice : undefined,
+        max_tokens: request.maxTokens,
         stream: false,
       }),
     });
@@ -88,4 +90,3 @@ interface OpenAiCompletion {
 function normaliseBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
-
