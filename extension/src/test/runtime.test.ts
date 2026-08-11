@@ -129,6 +129,13 @@ test('workspace discovery is exposed only with its read-only capability and boun
   const registry = new ToolRegistry([listWorkspaceEntriesTool]);
   assert.deepEqual(registry.present(state()), []);
   assert.deepEqual(registry.present(state([WORKSPACE_OBSERVE_CAPABILITY])).map((tool) => tool.id), ['list_workspace_entries']);
+  assert.deepEqual(
+    registry.present({
+      ...state([WORKSPACE_OBSERVE_CAPABILITY]),
+      completedActions: [{ toolId: 'list_workspace_entries', summary: 'Workspace listing returned.' }],
+    }),
+    [],
+  );
 
   const entries = Array.from({ length: MAX_WORKSPACE_ENTRIES + 2 }, (_, index) => ({
     name: `entry-${String(index).padStart(2, '0')}`,
@@ -138,6 +145,25 @@ test('workspace discovery is exposed only with its read-only capability and boun
   assert.match(summary, new RegExp(`showing ${MAX_WORKSPACE_ENTRIES} of ${MAX_WORKSPACE_ENTRIES + 2}`));
   assert.equal(summary.includes('entry-41'), false);
   assert.throws(() => summariseWorkspaceEntries([], 0), /positive integer/);
+});
+
+test('workspace discovery is removed from the next inference after one successful call', async () => {
+  const gateway = new SequenceGateway([
+    { kind: 'tool-request', request: { toolId: 'list_workspace_entries', arguments: {} } },
+    { kind: 'final', text: 'The workspace contains README.md.' },
+  ]);
+  const { controller } = loop(gateway, new ToolRegistry([listWorkspaceEntriesTool]));
+  const outcome = await controller.run({
+    initialState: state([WORKSPACE_OBSERVE_CAPABILITY]),
+    context: [],
+    requestedDecision: 'List the workspace.',
+  }, new AbortController().signal);
+
+  assert.equal(outcome.kind, 'completed');
+  assert.deepEqual(gateway.capsules.map((capsule) => capsule.tools.map((tool) => tool.id)), [
+    ['list_workspace_entries'],
+    [],
+  ]);
 });
 
 test('an approval-required tool stops at an explicit approval boundary', async () => {

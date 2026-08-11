@@ -23,7 +23,7 @@ This makes a Fast → Deep → Fast sequence observable in a trace without prese
 - A status-bar indicator and commands to view or clear the trace.
 - An initial owned-runtime foundation, surfaced as `@wayfinder` in VS Code Chat. It has serialisable execution state, a model-neutral request capsule, deterministic context budgets, a capability-based tool broker, bounded-loop transitions, cancellation, validation repair/escalation, and privacy-conscious diagnostics.
 
-The owned-runtime chat surface currently exposes one executable capability: a bounded, read-only listing of direct entries in the open workspace roots. It does not recurse, read file contents, edit files, run commands, or make consequential calls. Filenames are sent to the model only when it explicitly requests the tool; diagnostics remain metadata-only.
+The owned-runtime chat surface currently exposes one executable capability: a bounded, one-time, read-only listing of direct entries in the open workspace roots. It does not recurse, read file contents, edit files, run commands, or make consequential calls. Filenames are sent to the model only when it explicitly requests the tool; diagnostics remain metadata-only.
 
 The implementation follows VS Code's public [Language Model Chat Provider API](https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider). That API supplies the complete message sequence to the provider and permits text, tool-call, and tool-result response parts. VS Code's current API reference also documents tool results as input parts, which is the critical evidence required for per-invocation routing.
 

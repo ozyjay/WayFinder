@@ -49,7 +49,7 @@ initialise → compile capsule → select tier/tools → invoke model
 
 The controller has a positive iteration limit, cancellation checks, explicit terminal statuses, validation-failure limits, and a deterministic Fast-to-Deep escalation policy. It accepts one tool request per inference in this first slice.
 
-The public `@wayfinder` surface grants one `workspace.observe` capability: `list_workspace_entries` lists at most 40 direct entries per call across the open workspace roots. It cannot recurse, read source contents, edit files, run commands, or make hidden consequential calls. The listing is model-visible only after an explicit tool request and is excluded from diagnostics. Later tool adapters must declare a stable ID, capability set, input schema, risk, approval requirement, availability condition, and evidence output class before they can be exposed.
+The public `@wayfinder` surface grants one `workspace.observe` capability: `list_workspace_entries` lists at most 40 direct entries in one call across the open workspace roots, then is removed from the task's tool surface. It cannot recurse, read source contents, edit files, run commands, or make hidden consequential calls. The listing is model-visible only after an explicit tool request and is excluded from diagnostics. Later tool adapters must declare a stable ID, capability set, input schema, risk, approval requirement, availability condition, and evidence output class before they can be exposed.
 
 ## Measurement and comparison
 

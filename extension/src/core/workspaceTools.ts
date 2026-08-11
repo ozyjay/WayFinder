@@ -29,6 +29,7 @@ export const listWorkspaceEntriesTool: ToolDefinition = {
   risk: 'read-only',
   requiresApproval: false,
   expectedOutputClass: 'evidence',
+  isAvailable: (state) => !state.completedActions.some((action) => action.toolId === LIST_WORKSPACE_ENTRIES_TOOL_ID),
 };
 
 export function summariseWorkspaceEntries(
