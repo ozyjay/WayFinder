@@ -1,6 +1,6 @@
 # WayFinder
 
-WayFinder is a local-first VS Code extension research POC for explainable, trajectory-aware routing between local language models. It deliberately begins with **Gate 0**: testing whether one logical VS Code model can select a different backend on successive agent inferences while VS Code retains the tool loop.
+WayFinder is a local-first VS Code extension research POC for explainable, SLM-native agent orchestration. **Gate 0** remains available as the historical provider baseline: it tests whether one logical VS Code model can select a different backend on successive agent inferences while VS Code retains the tool loop.
 
 It does not yet claim to be a complete trajectory-aware router. The current rule is a transparent test fixture:
 
@@ -14,13 +14,16 @@ This makes a Fast → Deep → Fast sequence observable in a trace without prese
 
 ## What is implemented
 
-- A public VS Code Language Model Chat Provider named `wayfinder` with `WayFinder Auto`, `WayFinder Fast`, and `WayFinder Deep` virtual models.
-- Per-invocation inspection of text parts, prior tool calls, and tool results.
+- A public VS Code Language Model Chat Provider named `wayfinder` with `WayFinder Auto`, `WayFinder Fast`, and `WayFinder Deep` virtual models. This is explicitly the Gate 0 compatibility and comparison path.
+- Per-invocation inspection of text parts, prior tool calls, and tool results, with a labelled character-based compatibility token estimate (not a tokenizer count).
 - A deterministic Gate 0 backend selector; explicit Fast and Deep choices are never rerouted.
 - A local ModelDeck OpenAI-compatible adapter that preserves text, tool calls, and tool-result correlation.
 - Safe mock mode, enabled by default, which needs no model service.
 - Append-only local JSONL traces containing counts and routing metadata, never prompt text, source content, environment variables, or credentials.
 - A status-bar indicator and commands to view or clear the trace.
+- An initial owned-runtime foundation, surfaced as `@wayfinder` in VS Code Chat. It has serialisable execution state, a model-neutral request capsule, deterministic context budgets, a capability-based tool broker, bounded-loop transitions, cancellation, validation repair/escalation, and privacy-conscious diagnostics.
+
+The owned-runtime chat surface currently exposes no executable tools. Its purpose is to exercise the new orchestration boundary safely with a compact task-only working set; tool adapters and their approval UX are later gates.
 
 The implementation follows VS Code's public [Language Model Chat Provider API](https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider). That API supplies the complete message sequence to the provider and permits text, tool-call, and tool-result response parts. VS Code's current API reference also documents tool results as input parts, which is the critical evidence required for per-invocation routing.
 
@@ -41,6 +44,13 @@ The implementation follows VS Code's public [Language Model Chat Provider API](h
 
 The mock response intentionally does not manufacture tool calls. It verifies provider registration and trace behaviour; a ModelDeck-backed agent task is required to prove that VS Code invokes tools and returns their results to a later provider invocation.
 
+## Run the owned-runtime foundation
+
+1. Run the extension in an Extension Development Host as above.
+2. In Chat, send a request to `@wayfinder`. This route owns the compact request capsule and loop rather than forwarding Copilot's assembled agent transcript.
+3. Leave `wayfinder.backendMode` as `mock` for a deterministic response, or configure local ModelDeck settings to use a local model.
+4. Use **WayFinder: Show Runtime Diagnostics** to inspect metadata-only JSONL records. It records budgets, context categories and provenance, exposed-tool size, validation outcomes, escalation, latency, and stop reasons—never prompts, source contents, arguments, or raw tool outputs.
+
 ## Configuration
 
 | Setting | Default | Purpose |
@@ -50,27 +60,32 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 | `wayfinder.modelDeck.fastModel` | `fast-local` | Configured fast backend model ID. |
 | `wayfinder.modelDeck.deepModel` | `deep-local` | Configured deep backend model ID. |
 | `wayfinder.trace.enabled` | `true` | Enable local privacy-preserving Gate 0 traces. |
+| `wayfinder.runtime.inputBudget` | `4096` | Estimated input budget for the owned runtime; not an asserted model context limit. |
+| `wayfinder.runtime.outputBudget` | `1024` | Estimated output budget for the owned runtime. |
+| `wayfinder.runtime.maxIterations` | `4` | Bounded-loop iteration limit for the owned runtime. |
 
 No token, API key, or model identity is hard-coded. The supplied URL and model IDs are placeholders and must be set to match the local ModelDeck installation.
 
-## Feasibility status
+## Architecture and feasibility status
 
 The public API supports the **mechanism**: multiple virtual models, request-history access, structured tool-call responses, structured tool-result inputs, and per-request provider execution. A local Extension Development Host trial has now demonstrated the Gate 0 Fast → Deep → Fast sequence while VS Code retained tool execution. The provider mechanism therefore passed Gate 0 in that environment; the captured trace remains the experiment artefact.
 
 The trial also showed that model routing alone is insufficient for small local models. Copilot Agent mode can supply a large instruction set and tool catalogue, and malformed or repeated tool calls can create runaway loops. The next research task is privacy-preserving observability and tool-surface debugging: measure request and tool metadata, explain routing decisions, and identify truncation, retry, and loop behaviour without recording prompts, source contents, tool arguments, or tool results. See [the Gate 0 protocol](docs/gate-0.md) for the recorded result and scoped follow-up.
 
+Gate 1 begins the owned-runtime transition without rewriting the Gate 0 result. Its core is independent of VS Code UI and ModelDeck wire format: task state, context selection, tool contracts, response validation, loop control, and diagnostics are unit-testable without live inference. The existing provider remains available for controlled comparison.
+
 This does not guarantee that every VS Code Chat distribution or organisation policy will expose local providers in every agent experience. In particular, the provider guide notes that organisations can disable bring-your-own-key models through Copilot policy.
 
-If the real trial does not return tool results to a subsequent provider call, the documented fallback is a WayFinder chat participant. That would make WayFinder own tool selection, invocation, approvals, cancellation, conversation/history construction, edits, terminal/task integration, and result presentation. This is deliberately not implemented before the provider experiment fails, because it would no longer preserve VS Code's normal agent loop.
+WayFinder now uses a chat participant as the first owned-runtime integration surface. This is not a claim that the UI alone makes WayFinder autonomous: the runtime core, not the participant, owns its model-visible working set and loop. Capability adapters, approvals, and consequential actions remain intentionally unimplemented in this slice.
 
-See [the Gate 0 protocol](docs/gate-0.md) for the exact acceptance criteria and limitations, and [the trace schema](protocol/gate-zero-trace.schema.json) for the recorded fields.
+See [the Gate 0 protocol](docs/gate-0.md) for the historical acceptance criteria and limitations, [the owned-runtime architecture](docs/owned-runtime.md) for the active design, and the trace schemas in `protocol/` for recorded fields.
 
 ## Repository layout
 
 ```text
-extension/  VS Code extension and deterministic routing fixture
-protocol/   Language-neutral Gate 0 trace schema
-docs/       Feasibility protocol and architecture notes
+extension/  VS Code extension, compatibility adapter, and owned runtime
+protocol/   Language-neutral trace and diagnostic schemas
+docs/       Gate evidence and owned-runtime architecture
 ```
 
-Future gates will add semantic trajectory state, configurable capability profiles, observer output validation, mixed-initiative controls, developer-side boundary events, and replay evaluation. Those are intentionally excluded from Gate 0.
+Future gates will add concrete read-only capability adapters, approval presentation and resumption, model discovery/tokenizer integration, selected repository context, and replay evaluation. Those are intentionally excluded from the present foundation.

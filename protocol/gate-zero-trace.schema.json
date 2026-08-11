@@ -25,6 +25,8 @@
     "textPartCount": { "type": "integer", "minimum": 0 },
     "toolCallCount": { "type": "integer", "minimum": 0 },
     "toolResultCount": { "type": "integer", "minimum": 0 },
+    "messageTokenEstimate": { "type": "integer", "minimum": 0 },
+    "tokenCountKind": { "const": "character-approximation" },
     "virtualModel": { "enum": ["wayfinder-auto", "wayfinder-fast", "wayfinder-deep"] },
     "backend": { "enum": ["fast", "deep"] },
     "routingReason": { "type": "string", "maxLength": 280 },

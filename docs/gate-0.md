@@ -66,7 +66,9 @@ The trial also identified operational limitations that are outside the pass crit
 - ModelDeck's default 32-token output budget truncated longer tool-call JSON. The provider now sends an explicit output-token budget.
 - Repeated failing tool calls can create a loop and eventually leave local ModelDeck backends unavailable. Gate 0 has no loop-control policy yet.
 
-## Next research task — observability and tool-surface debugging
+## Historical follow-on — observability and tool-surface debugging
+
+The following was the follow-on proposed when Gate 0 was recorded. It remains useful evidence, but the active architectural decision is now the owned-runtime foundation in [owned-runtime.md](owned-runtime.md). Gate 0 is retained as a compatibility and comparison condition; it is not the primary runtime architecture.
 
 The next task is to improve WayFinder's privacy-preserving logging and debugging capabilities before introducing a more sophisticated routing policy. The objective is to make context pressure, tool availability, malformed calls, retries, backend failures, and loop behaviour explainable from structured evidence.
 
@@ -82,7 +84,7 @@ This task investigates the following research hypothesis:
 
 > Routing models without also routing their context and tool surface is incomplete.
 
-A useful local routing policy may need to account for a backend's context budget, tool-call capability, available tool schemas, request/output budgets, and loop state—not just choose a model ID. This is not yet a decision to replace VS Code's agent loop with a WayFinder-owned harness. The existing provider remains the preferred test bed while tool-surface mediation and diagnostics are evaluated.
+A useful local routing policy may need to account for a backend's context budget, tool-call capability, available tool schemas, request/output budgets, and loop state—not just choose a model ID. Gate 1 now evaluates that hypothesis through a WayFinder-owned harness, while the existing provider remains the compatibility and controlled comparison path.
 
 ## Result record
 

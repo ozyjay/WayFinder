@@ -5,11 +5,16 @@ import { JsonlTrace } from '../core/trace';
 import { ModelDeckClient, ModelDeckError, ModelDeckSettings, OpenAiMessage, OpenAiToolCall } from '../modeldeck/client';
 
 const MODELS: readonly vscode.LanguageModelChatInformation[] = [
-  model('wayfinder-auto', 'WayFinder Auto', 'Routes each inference at a tool boundary using the Gate 0 fixture.'),
-  model('wayfinder-fast', 'WayFinder Fast', 'Always uses the configured fast local backend.'),
-  model('wayfinder-deep', 'WayFinder Deep', 'Always uses the configured deep local backend.'),
+  model('wayfinder-auto', 'WayFinder Auto', 'Gate 0 compatibility fixture. Token counts are labelled character-based estimates.'),
+  model('wayfinder-fast', 'WayFinder Fast', 'Gate 0 compatibility choice. Token counts are labelled character-based estimates.'),
+  model('wayfinder-deep', 'WayFinder Deep', 'Gate 0 compatibility choice. Token counts are labelled character-based estimates.'),
 ];
 
+/**
+ * Gate 0 compatibility and comparison path. VS Code owns its message history,
+ * tool loop, and approvals on this surface; the owned runtime does not depend
+ * on this adapter.
+ */
 export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatProvider {
   private requestNumber = 0;
 
@@ -76,7 +81,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
     text: string | vscode.LanguageModelChatRequestMessage,
   ): Thenable<number> {
     const value = typeof text === 'string' ? text : text.content.map(partText).join(' ');
-    return Promise.resolve(Math.ceil(value.length / 4));
+    return Promise.resolve(estimateTokens(value).value);
   }
 
   private async complete(
@@ -146,14 +151,32 @@ function observe(requestNumber: number, messages: readonly vscode.LanguageModelC
   let textPartCount = 0;
   let toolCallCount = 0;
   let toolResultCount = 0;
+  let messageCharacters = 0;
   for (const message of messages) {
     for (const part of message.content) {
       if (part instanceof vscode.LanguageModelTextPart) textPartCount += 1;
       if (part instanceof vscode.LanguageModelToolCallPart) toolCallCount += 1;
       if (part instanceof vscode.LanguageModelToolResultPart) toolResultCount += 1;
+      messageCharacters += partText(part).length;
     }
   }
-  return { requestNumber, messageCount: messages.length, textPartCount, toolCallCount, toolResultCount };
+  return {
+    requestNumber,
+    messageCount: messages.length,
+    textPartCount,
+    toolCallCount,
+    toolResultCount,
+    messageTokenEstimate: estimateTokensFromCharacterCount(messageCharacters),
+    tokenCountKind: 'character-approximation',
+  };
+}
+
+export function estimateTokens(value: string): { readonly value: number; readonly kind: 'character-approximation' } {
+  return { value: estimateTokensFromCharacterCount(value.length), kind: 'character-approximation' };
+}
+
+function estimateTokensFromCharacterCount(characterCount: number): number {
+  return Math.ceil(characterCount / 4);
 }
 
 function convertMessages(messages: readonly vscode.LanguageModelChatRequestMessage[]): OpenAiMessage[] {

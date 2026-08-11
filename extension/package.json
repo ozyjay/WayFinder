@@ -1,7 +1,7 @@
 {
   "name": "@wayfinder/extension",
   "displayName": "WayFinder",
-  "description": "A local, trajectory-aware language-model routing research POC.",
+  "description": "A local-first SLM agent-runtime research POC with a Gate 0 provider baseline.",
   "version": "0.1.0",
   "publisher": "wayfinder-research",
   "files": [
@@ -24,6 +24,14 @@
         "managementCommand": "wayfinder.configureModelDeck"
       }
     ],
+    "chatParticipants": [
+      {
+        "id": "wayfinder.runtime",
+        "name": "wayfinder",
+        "fullName": "WayFinder",
+        "description": "Run a compact local WayFinder task"
+      }
+    ],
     "commands": [
       {
         "command": "wayfinder.configureModelDeck",
@@ -36,6 +44,10 @@
       {
         "command": "wayfinder.clearTrace",
         "title": "WayFinder: Clear Gate 0 Trace"
+      },
+      {
+        "command": "wayfinder.showRuntimeDiagnostics",
+        "title": "WayFinder: Show Runtime Diagnostics"
       }
     ],
     "configuration": {
@@ -66,6 +78,27 @@
           "type": "boolean",
           "default": true,
           "description": "Record privacy-preserving Gate 0 routing metadata in a local JSONL trace."
+        },
+        "wayfinder.runtime.inputBudget": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 1,
+          "multipleOf": 1,
+          "description": "Estimated input-token budget for the initial owned WayFinder runtime. This is not an asserted backend context limit."
+        },
+        "wayfinder.runtime.outputBudget": {
+          "type": "number",
+          "default": 1024,
+          "minimum": 1,
+          "multipleOf": 1,
+          "description": "Estimated output-token budget for the initial owned WayFinder runtime."
+        },
+        "wayfinder.runtime.maxIterations": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "multipleOf": 1,
+          "description": "Maximum bounded-loop iterations for an owned WayFinder task."
         }
       }
     }

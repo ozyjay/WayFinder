@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wayfinder.local/protocol/runtime-inference-diagnostic.schema.json",
+  "title": "WayFinder owned-runtime inference diagnostic",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp", "iteration", "modelTier", "phase", "contextItemTypes", "contextProvenance",
+    "contextCharactersByType", "inputBudget", "outputBudget", "exposedToolCount",
+    "exposedToolSchemaBytes", "stablePrefixId", "latencyMs", "outcome"
+  ],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "iteration": { "type": "integer", "minimum": 0 },
+    "modelTier": { "enum": ["fast", "deep"] },
+    "phase": { "enum": ["initialising", "planning", "acting", "observing", "awaiting-approval", "completed", "cancelled", "failed", "stopped"] },
+    "contextItemTypes": { "type": "array", "items": { "enum": ["goal", "instruction", "evidence", "code", "selection", "failure"] } },
+    "contextProvenance": { "type": "array", "items": { "type": "string", "maxLength": 280 } },
+    "contextCharactersByType": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "inputBudget": { "$ref": "#/$defs/tokenBudget" },
+    "outputBudget": { "$ref": "#/$defs/tokenBudget" },
+    "exposedToolCount": { "type": "integer", "minimum": 0 },
+    "exposedToolSchemaBytes": { "type": "integer", "minimum": 0 },
+    "stablePrefixId": { "type": "string", "maxLength": 280 },
+    "latencyMs": { "type": "integer", "minimum": 0 },
+    "outcome": { "enum": ["final", "tool-request", "validation-rejected", "approval-required", "cancelled", "stopped", "failed"] },
+    "validationCode": { "enum": ["unknown-tool", "malformed-arguments", "unsupported-response"] },
+    "escalation": { "enum": ["fast-to-deep"] },
+    "stopReason": { "enum": ["iteration-limit", "cancelled", "validation-limit", "tool-rejected"] }
+  },
+  "$defs": {
+    "tokenBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "countKind"],
+      "properties": {
+        "limit": { "type": "integer", "minimum": 1 },
+        "countKind": { "enum": ["authoritative", "estimate"] }
+      }
+    }
+  }
+}

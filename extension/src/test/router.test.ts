@@ -4,7 +4,15 @@ import { selectBackend } from '../core/router';
 import { InvocationObservation } from '../core/types';
 
 function observation(toolResultCount: number): InvocationObservation {
-  return { requestNumber: toolResultCount + 1, messageCount: 2, textPartCount: 1, toolCallCount: 0, toolResultCount };
+  return {
+    requestNumber: toolResultCount + 1,
+    messageCount: 2,
+    textPartCount: 1,
+    toolCallCount: 0,
+    toolResultCount,
+    messageTokenEstimate: 10,
+    tokenCountKind: 'character-approximation',
+  };
 }
 
 test('Gate 0 Auto fixture performs Fast → Deep → Fast at tool boundaries', () => {

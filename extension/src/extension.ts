@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import { join } from 'node:path';
 import { JsonlTrace } from './core/trace';
+import { JsonlRuntimeDiagnostics } from './core/diagnostics';
 import { BackendId, VirtualModelId } from './core/types';
-import { WayFinderLanguageModelProvider } from './provider/wayfinderProvider';
+import { WayFinderLanguageModelProvider } from './compatibility/wayfinderProvider';
+import { registerWayFinderRuntimeParticipant } from './participant/wayfinderParticipant';
 
 export function activate(context: vscode.ExtensionContext): void {
   const trace = new JsonlTrace(join(context.globalStorageUri.fsPath, 'gate-0.jsonl'));
+  const runtimeDiagnostics = new JsonlRuntimeDiagnostics(join(context.globalStorageUri.fsPath, 'runtime.jsonl'));
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   status.command = 'wayfinder.showTrace';
   status.text = 'WayFinder: Gate 0 ready';
@@ -22,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     status,
+    registerWayFinderRuntimeParticipant(context, vscode.workspace.getConfiguration('wayfinder'), (text) => { status.text = text; }),
     vscode.lm.registerLanguageModelChatProvider('wayfinder', provider),
     vscode.commands.registerCommand('wayfinder.showTrace', async () => {
       const entries = await trace.read();
@@ -35,6 +39,14 @@ export function activate(context: vscode.ExtensionContext): void {
       await trace.clear();
       status.text = 'WayFinder: Gate 0 trace cleared';
       void vscode.window.showInformationMessage('WayFinder Gate 0 trace cleared.');
+    }),
+    vscode.commands.registerCommand('wayfinder.showRuntimeDiagnostics', async () => {
+      const entries = await runtimeDiagnostics.read();
+      const document = await vscode.workspace.openTextDocument({
+        language: 'jsonl',
+        content: entries.map((entry) => JSON.stringify(entry)).join('\n') || '# No owned-runtime inferences recorded yet.\n',
+      });
+      await vscode.window.showTextDocument(document, { preview: true });
     }),
     vscode.commands.registerCommand('wayfinder.configureModelDeck', async () => {
       await vscode.commands.executeCommand('workbench.action.openSettings', 'wayfinder.modelDeck');

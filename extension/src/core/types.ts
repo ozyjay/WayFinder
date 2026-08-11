@@ -7,6 +7,9 @@ export interface InvocationObservation {
   readonly textPartCount: number;
   readonly toolCallCount: number;
   readonly toolResultCount: number;
+  /** Character-based compatibility estimate, never an authoritative token count. */
+  readonly messageTokenEstimate: number;
+  readonly tokenCountKind: 'character-approximation';
 }
 
 export interface RouteDecision {
@@ -25,4 +28,3 @@ export interface TraceEntry extends InvocationObservation {
   readonly backendMode: 'mock' | 'modeldeck';
   readonly errorCode?: string;
 }
-
