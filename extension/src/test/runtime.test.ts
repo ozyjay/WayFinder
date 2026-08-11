@@ -6,6 +6,12 @@ import { ContextItem, compileRequestCapsule, selectContextWithinBudget } from '.
 import { BoundedAgentLoop, ModelGateway, ModelResponse } from '../core/runtime';
 import { ToolExecutor, ToolRegistry } from '../core/toolBroker';
 import { selectBackend } from '../core/router';
+import {
+  MAX_WORKSPACE_ENTRIES,
+  WORKSPACE_OBSERVE_CAPABILITY,
+  listWorkspaceEntriesTool,
+  summariseWorkspaceEntries,
+} from '../core/workspaceTools';
 
 class SequenceGateway implements ModelGateway {
   public readonly capsules = [] as ReturnType<typeof compileRequestCapsule>[];
@@ -117,6 +123,21 @@ test('the broker rejects unknown tools and malformed tool arguments', () => {
     code: 'malformed-arguments',
     message: "Tool 'workspace.readFile' received malformed arguments.",
   });
+});
+
+test('workspace discovery is exposed only with its read-only capability and bounds its evidence', () => {
+  const registry = new ToolRegistry([listWorkspaceEntriesTool]);
+  assert.deepEqual(registry.present(state()), []);
+  assert.deepEqual(registry.present(state([WORKSPACE_OBSERVE_CAPABILITY])).map((tool) => tool.id), ['list_workspace_entries']);
+
+  const entries = Array.from({ length: MAX_WORKSPACE_ENTRIES + 2 }, (_, index) => ({
+    name: `entry-${String(index).padStart(2, '0')}`,
+    kind: 'file' as const,
+  }));
+  const summary = summariseWorkspaceEntries([{ name: 'workspace', entries }]);
+  assert.match(summary, new RegExp(`showing ${MAX_WORKSPACE_ENTRIES} of ${MAX_WORKSPACE_ENTRIES + 2}`));
+  assert.equal(summary.includes('entry-41'), false);
+  assert.throws(() => summariseWorkspaceEntries([], 0), /positive integer/);
 });
 
 test('an approval-required tool stops at an explicit approval boundary', async () => {

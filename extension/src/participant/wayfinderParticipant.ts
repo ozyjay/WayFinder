@@ -3,9 +3,11 @@ import { join } from 'node:path';
 import { JsonlRuntimeDiagnostics } from '../core/diagnostics';
 import { createExecutionState, defaultBudget } from '../core/executionState';
 import { BoundedAgentLoop, ModelGateway, denyConsequentialActions } from '../core/runtime';
-import { ToolExecutor, ToolRegistry } from '../core/toolBroker';
+import { ToolRegistry } from '../core/toolBroker';
+import { WORKSPACE_OBSERVE_CAPABILITY, listWorkspaceEntriesTool } from '../core/workspaceTools';
 import { ModelDeckSettings } from '../modeldeck/client';
 import { ModelDeckOwnedGateway, OwnedMockGateway } from '../modeldeck/ownedGateway';
+import { WorkspaceListToolExecutor } from './workspaceListTool';
 
 const PARTICIPANT_ID = 'wayfinder.runtime';
 
@@ -25,18 +27,18 @@ export function registerWayFinderRuntimeParticipant(
     const cancellation = token.onCancellationRequested(() => controller.abort());
     try {
       onStatus('WayFinder: compiling compact context');
-      stream.progress('WayFinder is compiling the selected working set (task only; no tools exposed).');
+      stream.progress('WayFinder is compiling the selected working set (task plus one read-only workspace-discovery tool).');
       const state = createExecutionState(request.prompt, {
         budget: {
           input: { limit: configuration.get<number>('runtime.inputBudget', defaultBudget().input.limit), countKind: 'estimate' },
           output: { limit: configuration.get<number>('runtime.outputBudget', defaultBudget().output.limit), countKind: 'estimate' },
         },
-        allowedCapabilities: [],
+        allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY],
       });
       const runtime = new BoundedAgentLoop(
         gatewayFor(configuration),
-        new ToolRegistry(),
-        noToolsExecutor,
+        new ToolRegistry([listWorkspaceEntriesTool]),
+        new WorkspaceListToolExecutor(),
         diagnostics,
         {
           maxIterations: configuration.get<number>('runtime.maxIterations', 4),
@@ -80,9 +82,3 @@ function gatewayFor(configuration: vscode.WorkspaceConfiguration): ModelGateway 
   };
   return new ModelDeckOwnedGateway(settings);
 }
-
-const noToolsExecutor: ToolExecutor = {
-  async execute(): Promise<never> {
-    throw new Error('No tools are exposed by the initial WayFinder owned-runtime surface.');
-  },
-};

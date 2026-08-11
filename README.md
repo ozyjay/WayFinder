@@ -23,7 +23,7 @@ This makes a Fast → Deep → Fast sequence observable in a trace without prese
 - A status-bar indicator and commands to view or clear the trace.
 - An initial owned-runtime foundation, surfaced as `@wayfinder` in VS Code Chat. It has serialisable execution state, a model-neutral request capsule, deterministic context budgets, a capability-based tool broker, bounded-loop transitions, cancellation, validation repair/escalation, and privacy-conscious diagnostics.
 
-The owned-runtime chat surface currently exposes no executable tools. Its purpose is to exercise the new orchestration boundary safely with a compact task-only working set; tool adapters and their approval UX are later gates.
+The owned-runtime chat surface currently exposes one executable capability: a bounded, read-only listing of direct entries in the open workspace roots. It does not recurse, read file contents, edit files, run commands, or make consequential calls. Filenames are sent to the model only when it explicitly requests the tool; diagnostics remain metadata-only.
 
 The implementation follows VS Code's public [Language Model Chat Provider API](https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider). That API supplies the complete message sequence to the provider and permits text, tool-call, and tool-result response parts. VS Code's current API reference also documents tool results as input parts, which is the critical evidence required for per-invocation routing.
 
@@ -47,7 +47,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 ## Run the owned-runtime foundation
 
 1. Run the extension in an Extension Development Host as above.
-2. In Chat, send a request to `@wayfinder`. This route owns the compact request capsule and loop rather than forwarding Copilot's assembled agent transcript.
+2. In Chat, send a request to `@wayfinder`. This route owns the compact request capsule and loop rather than forwarding Copilot's assembled agent transcript. To exercise its first read-only capability, ask: `List the top-level files in this workspace.`
 3. Leave `wayfinder.backendMode` as `mock` for a deterministic response, or configure local ModelDeck settings to use a local model.
 4. Use **WayFinder: Show Runtime Diagnostics** to inspect metadata-only JSONL records. It records budgets, context categories and provenance, exposed-tool size, validation outcomes, escalation, latency, and stop reasons—never prompts, source contents, arguments, or raw tool outputs.
 
