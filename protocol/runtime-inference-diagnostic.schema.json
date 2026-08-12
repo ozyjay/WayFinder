@@ -26,7 +26,8 @@
     "outcome": { "enum": ["final", "tool-request", "validation-rejected", "approval-required", "cancelled", "stopped", "failed"] },
     "validationCode": { "enum": ["unknown-tool", "malformed-arguments", "unsupported-response"] },
     "escalation": { "enum": ["fast-to-deep"] },
-    "stopReason": { "enum": ["iteration-limit", "cancelled", "validation-limit", "tool-rejected"] }
+    "stopReason": { "enum": ["iteration-limit", "cancelled", "validation-limit", "tool-rejected"] },
+    "modelDeckDiscovery": { "$ref": "#/$defs/modelDeckDiscovery" }
   },
   "$defs": {
     "tokenBudget": {
@@ -36,6 +37,45 @@
       "properties": {
         "limit": { "type": "integer", "minimum": 1 },
         "countKind": { "enum": ["authoritative", "estimate"] }
+      }
+    },
+    "modelDeckDiscovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "configuredWorker"],
+      "properties": {
+        "source": { "enum": ["explicit", "legacy"] },
+        "route": { "$ref": "#/$defs/modelDeckRoute" },
+        "configuredWorker": { "$ref": "#/$defs/modelDeckWorker" },
+        "selectedWorker": { "$ref": "#/$defs/modelDeckWorker" },
+        "selectionReason": { "enum": ["primary_ready", "backup_ready", "no_ready_worker"] }
+      }
+    },
+    "modelDeckRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publicModelId": { "type": "string" },
+        "capabilityId": { "type": "string" },
+        "routingProfileId": { "type": "string" },
+        "routingProfileRevision": { "type": "string" }
+      }
+    },
+    "modelDeckWorker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workerId": { "type": "string" },
+        "modelId": { "type": "string" },
+        "revision": { "type": "string" },
+        "baseModelId": { "type": "string" },
+        "baseModelRevision": { "type": "string" },
+        "artefactId": { "type": "string" },
+        "artefactRevision": { "type": "string" },
+        "runtime": { "type": "string" },
+        "accelerator": { "type": "string" },
+        "configurationFingerprint": { "type": "string" },
+        "runtimeConfigurationFingerprint": { "type": "string" }
       }
     }
   }

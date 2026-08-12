@@ -1,13 +1,17 @@
 import { ModelGateway, ModelResponse } from '../core/runtime';
 import { RequestCapsule } from '../core/requestCapsule';
-import { ModelDeckClient, ModelDeckSettings, OpenAiMessage } from './client';
+import { ModelDeckClient, ModelDeckDiscoveryMetadata, ModelDeckSettings, OpenAiMessage } from './client';
 
 /** Renders the model-neutral capsule only at the ModelDeck wire boundary. */
 export class ModelDeckOwnedGateway implements ModelGateway {
+  private latestDiscovery: ModelDeckDiscoveryMetadata | undefined;
+
   public constructor(private readonly settings: ModelDeckSettings) {}
 
   public async complete(capsule: RequestCapsule, signal: AbortSignal): Promise<ModelResponse> {
-    const response = await new ModelDeckClient(this.settings).complete({
+    this.latestDiscovery = undefined;
+    const client = new ModelDeckClient(this.settings);
+    const response = await client.complete({
       backend: capsule.modelTier,
       messages: [{ role: 'user', content: renderCapsule(capsule) }],
       tools: capsule.tools.map((tool) => ({
@@ -17,6 +21,17 @@ export class ModelDeckOwnedGateway implements ModelGateway {
       toolChoice: 'auto',
       maxTokens: capsule.budget.output.limit,
     }, signal);
+
+    // Discovery is diagnostic evidence only. A failed or cancelled discovery
+    // must not alter the compatible completion path.
+    try {
+      this.latestDiscovery = await client.discover(
+        capsule.modelTier === 'fast' ? this.settings.fastModel : this.settings.deepModel,
+        signal,
+      );
+    } catch {
+      this.latestDiscovery = undefined;
+    }
 
     if (response.toolCalls.length > 1) {
       return { kind: 'unsupported', reason: 'This bounded runtime slice accepts one tool request per inference.' };
@@ -30,6 +45,10 @@ export class ModelDeckOwnedGateway implements ModelGateway {
       }
     }
     return { kind: 'final', text: response.text };
+  }
+
+  public discoveryMetadata(): ModelDeckDiscoveryMetadata | undefined {
+    return this.latestDiscovery;
   }
 }
 

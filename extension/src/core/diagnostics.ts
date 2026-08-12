@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ExecutionPhase, ModelTier, TokenBudget } from './executionState';
 import { ContextItemType } from './requestCapsule';
+import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 
 /** Metadata only: never prompts, source content, tool arguments, or raw results. */
 export interface InferenceDiagnostic {
@@ -22,6 +23,8 @@ export interface InferenceDiagnostic {
   readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response';
   readonly escalation?: 'fast-to-deep';
   readonly stopReason?: 'iteration-limit' | 'cancelled' | 'validation-limit' | 'tool-rejected';
+  /** ModelDeck readiness snapshot; it does not identify the request-serving Worker. */
+  readonly modelDeckDiscovery?: ModelDeckDiscoveryMetadata;
 }
 
 export interface DiagnosticsSink {

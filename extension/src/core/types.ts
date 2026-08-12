@@ -27,4 +27,7 @@ export interface TraceEntry extends InvocationObservation {
   readonly latencyMs: number;
   readonly backendMode: 'mock' | 'modeldeck';
   readonly errorCode?: string;
+  /** ModelDeck readiness snapshot; it does not identify the request-serving Worker. */
+  readonly modelDeckDiscovery?: ModelDeckDiscoveryMetadata;
 }
+import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';

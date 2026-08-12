@@ -33,6 +33,7 @@
     "responseType": { "enum": ["text", "tool-call", "empty", "error"] },
     "latencyMs": { "type": "integer", "minimum": 0 },
     "backendMode": { "enum": ["mock", "modeldeck"] },
-    "errorCode": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+    "errorCode": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "modelDeckDiscovery": { "$ref": "runtime-inference-diagnostic.schema.json#/$defs/modelDeckDiscovery" }
   }
 }

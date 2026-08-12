@@ -20,7 +20,7 @@ model + selected context + tools + policy + input/output budgets + autonomy boun
 
 | Component | Owns | Current Gate 1 status |
 | --- | --- | --- |
-| Model gateway | ModelDeck wire request/response conversion and Fast/Deep selection | Non-streaming ModelDeck and deterministic mock adapters; discovery, health, streaming, and authoritative token limits are pending. |
+| Model gateway | ModelDeck wire request/response conversion and Fast/Deep selection | Non-streaming ModelDeck and deterministic mock adapters; `/v1/models` identity/readiness snapshots are recorded for diagnostics. Health, streaming, and authoritative token limits are pending. |
 | Execution state | Goal, phase, reduced evidence, completed actions, capabilities, tier, budgets, iterations, and terminal status | Implemented in `core/executionState.ts`; excludes chat transcript and raw tool output. |
 | Request capsule | Compact, model-neutral selected working set | Implemented in `core/requestCapsule.ts`; prompt rendering occurs only in the ModelDeck adapter. |
 | Context compiler | Deterministic priority/order selection, budget enforcement, exclusion provenance | Implemented for supplied candidates. Repository instruction, source, symbol, and failure collectors are future adapters. |
@@ -55,6 +55,10 @@ The public `@wayfinder` surface grants one `workspace.observe` capability: `list
 
 Each diagnostic records model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, escalation, iteration, and stop reason. It deliberately excludes sensitive contents.
 
+When a local ModelDeck endpoint exposes `/v1/models`, WayFinder also records a discovery-time snapshot. The explicit `modeldeck.route` identifies the stable public route. `modeldeck.primary_worker` is the configured Worker identity used for experimental identity: its worker ID, loaded model ID/revision, and `configuration_fingerprint`. `configuration_fingerprint` is configured identity; the optional `runtime_configuration_fingerprint` is separate ready-Worker evidence and must not replace it.
+
+`modeldeck.selected_worker` and `selection_reason` record only the ordered-routing readiness snapshot: primary-ready, backup-ready, or no-ready-worker. A missing selected Worker is valid for `no_ready_worker`. This snapshot does **not** establish which Worker served the preceding or following completion. Older ModelDeck records with flat `model_id`, `revision`, `runtime`, and `configuration_fingerprint` remain diagnostic-compatible, but lack the clarified route and selection state.
+
 The intended comparison conditions are:
 
 1. Gate 0 Copilot provider passthrough;
@@ -67,7 +71,7 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 
 1. **Gate 1a — foundation (implemented):** contracts, deterministic compiler, bounded loop, diagnostics, mock/ModelDeck gateway, and minimal chat participant.
 2. **Gate 1b — safe observation (started):** the bounded top-level workspace-listing adapter is implemented. Explicit file reading, language-service adapters, context collectors, and approval/resumption UI remain future work.
-3. **Gate 1c — model truth:** add ModelDeck discovery, immutable identity, availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
+3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
 4. **Gate 1d — evaluation:** run matched tasks under the three conditions and compare compactness, latency, tool validity, loop length, escalation, and task outcome.
 5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 

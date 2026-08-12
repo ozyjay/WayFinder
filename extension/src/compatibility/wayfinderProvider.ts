@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { BackendId, InvocationObservation, TraceEntry, VirtualModelId } from '../core/types';
 import { selectBackend } from '../core/router';
 import { JsonlTrace } from '../core/trace';
-import { ModelDeckClient, ModelDeckError, ModelDeckSettings, OpenAiMessage, OpenAiToolCall } from '../modeldeck/client';
+import { ModelDeckClient, ModelDeckDiscoveryMetadata, ModelDeckError, ModelDeckSettings, OpenAiMessage, OpenAiToolCall } from '../modeldeck/client';
 
 const MODELS: readonly vscode.LanguageModelChatInformation[] = [
   model('wayfinder-auto', 'WayFinder Auto', 'Gate 0 compatibility fixture. Token counts are labelled character-based estimates.'),
@@ -43,6 +43,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
 
     let responseType: TraceEntry['responseType'] = 'empty';
     let errorCode: string | undefined;
+    let modelDeckDiscovery: ModelDeckDiscoveryMetadata | undefined;
     try {
       const response = await this.complete(decision.backend, messages, options, model.maxOutputTokens, token);
       if (response.text) {
@@ -61,6 +62,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
       throw new vscode.LanguageModelError(message, { cause: error });
     } finally {
       if (this.configuration.get<boolean>('trace.enabled', true)) {
+        modelDeckDiscovery = await this.discoverySnapshot(decision.backend);
         await this.trace.append({
           timestamp: new Date().toISOString(),
           ...observation,
@@ -71,6 +73,7 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
           latencyMs: Math.round(performance.now() - startedAt),
           backendMode: this.backendMode(),
           ...(errorCode ? { errorCode } : {}),
+          ...(modelDeckDiscovery ? { modelDeckDiscovery } : {}),
         });
       }
     }
@@ -115,6 +118,20 @@ export class WayFinderLanguageModelProvider implements vscode.LanguageModelChatP
 
   private backendMode(): 'mock' | 'modeldeck' {
     return this.configuration.get<'mock' | 'modeldeck'>('backendMode', 'mock');
+  }
+
+  private async discoverySnapshot(backend: BackendId): Promise<ModelDeckDiscoveryMetadata | undefined> {
+    if (this.backendMode() !== 'modeldeck') return undefined;
+    const settings = this.modelDeckSettings();
+    try {
+      return await new ModelDeckClient(settings).discover(
+        backend === 'fast' ? settings.fastModel : settings.deepModel,
+        new AbortController().signal,
+      );
+    } catch {
+      // Discovery is optional diagnostic evidence and must not mask completion errors.
+      return undefined;
+    }
   }
 
   private modelDeckSettings(): ModelDeckSettings {

@@ -39,6 +39,7 @@ The exact number of supplied messages may vary. The required evidence is that th
 - Counts of supplied text, tool-call, and tool-result parts.
 - Backend selected and the deterministic reason.
 - Backend mode, response type, latency, and coarse backend error code.
+- When ModelDeck discovery is available, a separate readiness snapshot: stable public route provenance, configured primary Worker identity, and selected Worker/selection reason. This is not evidence of the Worker that served the completion.
 
 ## What it cannot establish
 
@@ -46,6 +47,7 @@ The exact number of supplied messages may vary. The required evidence is that th
 - Correctness or quality of model output.
 - A semantic phase transition, capability assessment, or human-centred explanation.
 - Complete interception of arbitrary integrated-terminal activity.
+- Which Worker served an individual completion: `selected_worker` is only a `/v1/models` readiness snapshot. `configuration_fingerprint` remains configured identity and is distinct from optional ready-Worker `runtime_configuration_fingerprint` evidence.
 
 ## Observed result
 

@@ -2,6 +2,7 @@ import { DiagnosticsSink, InferenceDiagnostic } from './diagnostics';
 import { Evidence, ExecutionState, isTerminal, transitionExecutionState } from './executionState';
 import { CapsuleInput, ContextItem, RequestCapsule, compileRequestCapsule } from './requestCapsule';
 import { ToolExecutionResult, ToolExecutor, ToolRegistry, ToolRequest } from './toolBroker';
+import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 
 export type ModelResponse =
   | { readonly kind: 'final'; readonly text: string }
@@ -10,6 +11,8 @@ export type ModelResponse =
 
 export interface ModelGateway {
   complete(capsule: RequestCapsule, signal: AbortSignal): Promise<ModelResponse>;
+  /** Optional per-inference ModelDeck discovery snapshot for experiment metadata. */
+  discoveryMetadata?(): ModelDeckDiscoveryMetadata | undefined;
 }
 
 export interface ApprovalPolicy {
@@ -242,6 +245,7 @@ export class BoundedAgentLoop {
   ): Promise<void> {
     const counts = emptyContextCharacterCounts();
     for (const item of capsule.context) counts[item.type] += item.content.length;
+    const modelDeckDiscovery = this.gateway.discoveryMetadata?.();
     await this.diagnostics.record({
       timestamp: new Date().toISOString(),
       iteration: state.iteration,
@@ -260,6 +264,7 @@ export class BoundedAgentLoop {
       ...(validationCode ? { validationCode } : {}),
       ...(escalation ? { escalation } : {}),
       ...(stopReason ? { stopReason } : {}),
+      ...(modelDeckDiscovery ? { modelDeckDiscovery } : {}),
     });
   }
 }
