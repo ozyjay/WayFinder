@@ -5,13 +5,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "timestamp", "iteration", "modelTier", "phase", "contextItemTypes", "contextProvenance",
+    "timestamp", "iteration", "executionMode", "modelTier", "phase", "contextItemTypes", "contextProvenance",
     "contextCharactersByType", "inputBudget", "outputBudget", "exposedToolCount",
     "exposedToolSchemaBytes", "stablePrefixId", "latencyMs", "outcome"
   ],
   "properties": {
     "timestamp": { "type": "string", "format": "date-time" },
     "iteration": { "type": "integer", "minimum": 0 },
+    "executionMode": { "enum": ["auto", "fast", "deep"] },
     "modelTier": { "enum": ["fast", "deep"] },
     "phase": { "enum": ["initialising", "planning", "acting", "observing", "awaiting-approval", "completed", "cancelled", "failed", "stopped"] },
     "contextItemTypes": { "type": "array", "items": { "enum": ["goal", "instruction", "evidence", "code", "selection", "failure"] } },

@@ -27,7 +27,7 @@ model + selected context + tools + policy + input/output budgets + autonomy boun
 | Tool broker | Capability selection, schema presentation, argument validation, approval boundary, and evidence reduction | Contracts and validation are implemented. The UI exposes one bounded read-only top-level workspace-listing capability. |
 | Agent loop | Bounded inspect–reason–act–observe control, validation repairs, escalation, cancellation, and stop reasons | Implemented in `core/runtime.ts`. |
 | Diagnostics | Privacy-conscious inference metadata | JSONL diagnostics record no prompt, source content, tool arguments, raw output, terminal output, environment values, or credentials. |
-| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | `@wayfinder` is the initial owned-runtime surface; the Gate 0 provider remains separate in `compatibility/`. |
+| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | The dedicated WayFinder Activity Bar sidebar is the owned-runtime surface; the Gate 0 provider remains separate in `compatibility/`. |
 
 ## Core contracts
 
@@ -47,13 +47,13 @@ initialise → compile capsule → select tier/tools → invoke model
 → continue, escalate, complete, cancel, or stop
 ```
 
-The controller has a positive iteration limit, cancellation checks, explicit terminal statuses, validation-failure limits, and a deterministic Fast-to-Deep escalation policy. It accepts one tool request per inference in this first slice.
+The controller has a positive iteration limit, cancellation checks, explicit terminal statuses, validation-failure limits, and a deterministic Fast-to-Deep escalation policy. In the sidebar, Auto starts on Fast and may escalate; explicit Fast and Deep tasks remain pinned to their selected tier. It accepts one tool request per inference in this first slice.
 
-The public `@wayfinder` surface grants one `workspace.observe` capability: `list_workspace_entries` lists at most 40 direct entries in one call across the open workspace roots, then is removed from the task's tool surface. It cannot recurse, read source contents, edit files, run commands, or make hidden consequential calls. The listing is model-visible only after an explicit tool request and is excluded from diagnostics. Later tool adapters must declare a stable ID, capability set, input schema, risk, approval requirement, availability condition, and evidence output class before they can be exposed.
+The public WayFinder sidebar grants one `workspace.observe` capability: `list_workspace_entries` lists at most 40 direct entries in one call across the open workspace roots, then is removed from the task's tool surface. It cannot recurse, read source contents, edit files, run commands, or make hidden consequential calls. The listing is model-visible only after an explicit tool request and is excluded from diagnostics. Later tool adapters must declare a stable ID, capability set, input schema, risk, approval requirement, availability condition, and evidence output class before they can be exposed.
 
 ## Measurement and comparison
 
-Each diagnostic records model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, escalation, iteration, and stop reason. It deliberately excludes sensitive contents.
+Each diagnostic records the developer-selected execution mode, model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, escalation, iteration, and stop reason. It deliberately excludes sensitive contents.
 
 When a local ModelDeck endpoint exposes `/v1/models`, WayFinder also records a discovery-time snapshot. The explicit `modeldeck.route` identifies the stable public route. `modeldeck.primary_worker` is the configured Worker identity used for experimental identity: its worker ID, loaded model ID/revision, and `configuration_fingerprint`. `configuration_fingerprint` is configured identity; the optional `runtime_configuration_fingerprint` is separate ready-Worker evidence and must not replace it.
 
@@ -69,7 +69,7 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 
 ## Staged migration
 
-1. **Gate 1a — foundation (implemented):** contracts, deterministic compiler, bounded loop, diagnostics, mock/ModelDeck gateway, and minimal chat participant.
+1. **Gate 1a — foundation (implemented):** contracts, deterministic compiler, bounded loop, diagnostics, mock/ModelDeck gateway, and task-first sidebar.
 2. **Gate 1b — safe observation (started):** the bounded top-level workspace-listing adapter is implemented. Explicit file reading, language-service adapters, context collectors, and approval/resumption UI remain future work.
 3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
 4. **Gate 1d — evaluation:** run matched tasks under the three conditions and compare compactness, latency, tool validity, loop length, escalation, and task outcome.
@@ -77,7 +77,7 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 
 ## Open questions and risks
 
-- VS Code Chat Participant is an integration surface, not a guarantee that every distribution or policy permits the same experience. The participant must remain replaceable.
+- The sidebar is an integration surface, not a guarantee that every distribution or policy permits the same experience. It must remain replaceable.
 - The ModelDeck API has not yet established authoritative model limits or tokenizer support. Configured budgets are estimates.
 - Choosing source excerpts safely needs explicit provenance, truncation, and privacy rules before collecting broad workspace content.
 - Approval resumption needs a stable pending-action store and UI decisions before any consequential tool adapter is enabled.

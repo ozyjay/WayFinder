@@ -6,6 +6,7 @@
   "publisher": "wayfinder-research",
   "files": [
     "dist/**",
+    "media/**",
     "package.json"
   ],
   "engines": {
@@ -24,15 +25,28 @@
         "managementCommand": "wayfinder.configureModelDeck"
       }
     ],
-    "chatParticipants": [
-      {
-        "id": "wayfinder.runtime",
-        "name": "wayfinder",
-        "fullName": "WayFinder",
-        "description": "Run a compact local WayFinder task"
-      }
-    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "wayfinder",
+          "title": "WayFinder",
+          "icon": "media/wayfinder.svg"
+        }
+      ]
+    },
+    "views": {
+      "wayfinder": [
+        {
+          "id": "wayfinder.taskView",
+          "name": "WayFinder"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "wayfinder.open",
+        "title": "WayFinder: Open"
+      },
       {
         "command": "wayfinder.configureModelDeck",
         "title": "WayFinder: Configure ModelDeck"

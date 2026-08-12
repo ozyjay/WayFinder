@@ -4,7 +4,8 @@ import { JsonlTrace } from './core/trace';
 import { JsonlRuntimeDiagnostics } from './core/diagnostics';
 import { BackendId, VirtualModelId } from './core/types';
 import { WayFinderLanguageModelProvider } from './compatibility/wayfinderProvider';
-import { registerWayFinderRuntimeParticipant } from './participant/wayfinderParticipant';
+import { createConfiguredTaskService } from './owned/configuredTaskService';
+import { VIEW_ID, WayFinderViewProvider } from './view/wayfinderView';
 
 export function activate(context: vscode.ExtensionContext): void {
   const trace = new JsonlTrace(join(context.globalStorageUri.fsPath, 'gate-0.jsonl'));
@@ -22,11 +23,19 @@ export function activate(context: vscode.ExtensionContext): void {
       status.text = `WayFinder: ${virtualModel.replace('wayfinder-', '')} → ${backend}`;
     },
   );
+  const taskView = new WayFinderViewProvider(
+    createConfiguredTaskService(context, vscode.workspace.getConfiguration('wayfinder')),
+    () => vscode.commands.executeCommand('wayfinder.showRuntimeDiagnostics'),
+  );
 
   context.subscriptions.push(
     status,
-    registerWayFinderRuntimeParticipant(context, vscode.workspace.getConfiguration('wayfinder'), (text) => { status.text = text; }),
+    taskView,
     vscode.lm.registerLanguageModelChatProvider('wayfinder', provider),
+    vscode.window.registerWebviewViewProvider(VIEW_ID, taskView),
+    vscode.commands.registerCommand('wayfinder.open', async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.wayfinder');
+    }),
     vscode.commands.registerCommand('wayfinder.showTrace', async () => {
       const entries = await trace.read();
       const document = await vscode.workspace.openTextDocument({

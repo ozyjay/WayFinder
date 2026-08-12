@@ -1,5 +1,5 @@
 import { DiagnosticsSink, InferenceDiagnostic } from './diagnostics';
-import { Evidence, ExecutionState, isTerminal, transitionExecutionState } from './executionState';
+import { Evidence, ExecutionMode, ExecutionState, isTerminal, transitionExecutionState } from './executionState';
 import { CapsuleInput, ContextItem, RequestCapsule, compileRequestCapsule } from './requestCapsule';
 import { ToolExecutionResult, ToolExecutor, ToolRegistry, ToolRequest } from './toolBroker';
 import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
@@ -26,6 +26,7 @@ export interface EscalationPolicy {
 
 export interface LoopOptions {
   readonly maxIterations: number;
+  readonly executionMode: ExecutionMode;
   readonly escalation: EscalationPolicy;
   readonly approval: ApprovalPolicy;
 }
@@ -181,7 +182,7 @@ export class BoundedAgentLoop {
     repairsAtTier: number,
     validationCode: InferenceDiagnostic['validationCode'],
   ): Promise<{ readonly kind: 'continue' } | { readonly kind: 'escalated'; readonly state: ExecutionState }> {
-    if (state.modelTier !== 'fast' || repairsAtTier < this.options.escalation.repairAttemptsBeforeEscalation || failures >= this.options.escalation.maximumValidationFailures) {
+    if (this.options.executionMode !== 'auto' || state.modelTier !== 'fast' || repairsAtTier < this.options.escalation.repairAttemptsBeforeEscalation || failures >= this.options.escalation.maximumValidationFailures) {
       return { kind: 'continue' };
     }
     const escalated = this.addEvidence({ ...state, modelTier: 'deep' }, {
@@ -217,6 +218,7 @@ export class BoundedAgentLoop {
     await this.diagnostics.record({
       timestamp: new Date().toISOString(),
       iteration,
+      executionMode: this.options.executionMode,
       modelTier: cancelled.modelTier,
       phase: cancelled.phase,
       contextItemTypes: [],
@@ -249,6 +251,7 @@ export class BoundedAgentLoop {
     await this.diagnostics.record({
       timestamp: new Date().toISOString(),
       iteration: state.iteration,
+      executionMode: this.options.executionMode,
       modelTier: state.modelTier,
       phase: state.phase,
       contextItemTypes: capsule.context.map((item) => item.type),

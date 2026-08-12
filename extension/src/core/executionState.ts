@@ -1,5 +1,8 @@
 export type ModelTier = 'fast' | 'deep';
 
+/** How a developer selected the tier for one owned-runtime task. */
+export type ExecutionMode = 'auto' | 'fast' | 'deep';
+
 export type ExecutionPhase =
   | 'initialising'
   | 'planning'

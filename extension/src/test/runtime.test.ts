@@ -63,6 +63,7 @@ function loop(gateway: ModelGateway, registry = new ToolRegistry(), diagnostics 
   return {
     controller: new BoundedAgentLoop(gateway, registry, executor, diagnostics, {
       maxIterations: 4,
+      executionMode: 'auto',
       escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 5 },
       approval: { decide: () => 'approved' as const },
       ...overrides,
@@ -215,6 +216,22 @@ test('validation repairs escalate Fast to Deep under the explicit policy', async
   assert.equal(outcome.kind, 'completed');
   assert.deepEqual(gateway.capsules.map((capsule) => capsule.modelTier), ['fast', 'fast', 'deep']);
   assert.equal(diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'), true);
+  assert.equal(diagnostics.entries.every((entry) => entry.executionMode === 'auto'), true);
+});
+
+test('explicit Fast and Deep modes remain pinned during validation repairs', async () => {
+  for (const initialTier of ['fast', 'deep'] as const) {
+    const gateway = new SequenceGateway([
+      { kind: 'unsupported', reason: 'Malformed response.' },
+      { kind: 'final', text: `${initialTier} response.` },
+    ]);
+    const { controller, diagnostics } = loop(gateway, new ToolRegistry(), new InMemoryDiagnostics(), { executionMode: initialTier });
+    const outcome = await controller.run({ initialState: { ...state(), modelTier: initialTier }, context: [], requestedDecision: 'Respond.' }, new AbortController().signal);
+    assert.equal(outcome.kind, 'completed');
+    assert.deepEqual(gateway.capsules.map((capsule) => capsule.modelTier), [initialTier, initialTier]);
+    assert.equal(diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'), false);
+    assert.equal(diagnostics.entries.every((entry) => entry.executionMode === initialTier), true);
+  }
 });
 
 test('the Gate 0 compatibility fixture is isolated from owned-runtime model state', async () => {

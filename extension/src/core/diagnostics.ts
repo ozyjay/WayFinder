@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { ExecutionPhase, ModelTier, TokenBudget } from './executionState';
+import { ExecutionMode, ExecutionPhase, ModelTier, TokenBudget } from './executionState';
 import { ContextItemType } from './requestCapsule';
 import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 
@@ -8,6 +8,8 @@ import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 export interface InferenceDiagnostic {
   readonly timestamp: string;
   readonly iteration: number;
+  /** Developer-selected policy for this owned-runtime task. */
+  readonly executionMode: ExecutionMode;
   readonly modelTier: ModelTier;
   readonly phase: ExecutionPhase;
   readonly contextItemTypes: readonly ContextItemType[];
