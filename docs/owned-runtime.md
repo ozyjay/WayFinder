@@ -72,7 +72,7 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 1. **Gate 1a — foundation (implemented):** contracts, deterministic compiler, bounded loop, diagnostics, mock/ModelDeck gateway, and task-first sidebar.
 2. **Gate 1b — safe observation (started):** bounded workspace listing and one direct UTF-8 text-file read are implemented. Language-service adapters, broader context collectors, and approval/resumption UI remain future work.
 3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
-4. **Gate 1d — evaluation:** run matched tasks under the three conditions and compare compactness, latency, tool validity, loop length, escalation, and task outcome.
+4. **Gate 1d — evaluation:** `npm run eval:readback` is an opt-in live ModelDeck check of the fixed bounded-readback fixture under Fast, Deep, and Auto. It asserts the list → read path and evidence coverage for Deep and Auto, then emits metadata-only tier, tool, validation, escalation, coverage-count, iteration, and latency results. The fixture is a first matched task; extend it before drawing broader routing conclusions.
 5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 
 ## Open questions and risks

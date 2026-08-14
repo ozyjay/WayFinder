@@ -23,6 +23,14 @@ export interface RuntimeRunner {
 export type RuntimeFactory = (mode: ExecutionMode) => RuntimeRunner;
 export type InitialStateFactory = (goal: string, mode: ExecutionMode) => ExecutionState;
 
+/** Shared policy text for the sidebar and repeatable local-model evaluation. */
+export const WORKSPACE_TASK_REQUESTED_DECISION = 'Answer the task using supplied evidence. For a question about the workspace, project, repository, or files, gather the available workspace listing before a final answer when it is offered.';
+export const WORKSPACE_TASK_CONSTRAINTS = [
+  'The open workspace root is already available through the listed read-only tools; do not ask the user for its path.',
+  'A workspace listing identifies direct entry names only. If a file-content question needs more evidence and a read tool is available, request that tool; do not claim to know contents unless they are supplied as evidence.',
+  'In Auto mode, a response based on read file evidence must retain enough distinctive source terms to meet the deterministic evidence-coverage requirement.',
+] as const;
+
 /**
  * UI-neutral owner for one bounded WayFinder task. It keeps no chat history
  * and exposes only coarse progress suitable for any VS Code surface.
@@ -52,12 +60,8 @@ export class OwnedTaskService {
       const outcome = await this.createRuntime(request.mode).run({
         initialState,
         context: [],
-        requestedDecision: 'Answer the task using supplied evidence. For a question about the workspace, project, repository, or files, gather the available workspace listing before a final answer when it is offered.',
-        constraints: [
-          'The open workspace root is already available through the listed read-only tools; do not ask the user for its path.',
-          'A workspace listing identifies direct entry names only. If a file-content question needs more evidence and a read tool is available, request that tool; do not claim to know contents unless they are supplied as evidence.',
-          'In Auto mode, a response based on read file evidence must retain enough distinctive source terms to meet the deterministic evidence-coverage requirement.',
-        ],
+        requestedDecision: WORKSPACE_TASK_REQUESTED_DECISION,
+        constraints: WORKSPACE_TASK_CONSTRAINTS,
       }, controller.signal);
       report(outcomeUpdate(outcome));
     } catch {

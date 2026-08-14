@@ -121,7 +121,8 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "npm run compile && node --test dist/test/**/*.test.js"
+    "test": "npm run compile && node --test dist/test/**/*.test.js",
+    "eval:readback": "npm run compile && node dist/eval/readbackQualityEval.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

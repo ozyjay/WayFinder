@@ -67,6 +67,21 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 
 No token, API key, or model identity is hard-coded. The supplied URL and model IDs are placeholders and must be set to match the local ModelDeck installation.
 
+## Run the live readback evaluation
+
+The automated readback evaluation runs the same harmless, fixed `Readme.md` fixture through Fast, Deep, and Auto. It verifies the bounded list → read evidence path and requires Deep and Auto answers to meet the deterministic evidence-coverage threshold. It prints metadata only: tiers, iterations, latency, tool IDs, validation codes, escalation, and coverage counts—never model replies or source text.
+
+It is deliberately separate from `npm test`, because it sends live requests to the local ModelDeck service. Provide the same local route details used by WayFinder:
+
+```bash
+WAYFINDER_EVAL_BASE_URL=http://127.0.0.1:8600/v1 \
+WAYFINDER_EVAL_FAST_MODEL=fast-local \
+WAYFINDER_EVAL_DEEP_MODEL=deep-local \
+npm run eval:readback
+```
+
+Fast is reported for comparison but may be incomplete. Auto passes whether Fast meets the threshold directly or it performs the recorded Fast-to-Deep escalation; Deep and Auto must both meet the threshold.
+
 ## Architecture and feasibility status
 
 The public API supports the **mechanism**: multiple virtual models, request-history access, structured tool-call responses, structured tool-result inputs, and per-request provider execution. A local Extension Development Host trial has now demonstrated the Gate 0 Fast → Deep → Fast sequence while VS Code retained tool execution. The provider mechanism therefore passed Gate 0 in that environment; the captured trace remains the experiment artefact.

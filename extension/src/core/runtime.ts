@@ -1,4 +1,5 @@
 import { DiagnosticsSink, InferenceDiagnostic } from './diagnostics';
+import { readFileEvidenceCoverage } from './evidenceCoverage';
 import { Evidence, ExecutionMode, ExecutionState, isTerminal, transitionExecutionState } from './executionState';
 import { CapsuleInput, ContextItem, RequestCapsule, compileRequestCapsule } from './requestCapsule';
 import { ToolExecutionResult, ToolExecutor, ToolRegistry, ToolRequest } from './toolBroker';
@@ -321,24 +322,10 @@ function validateEvidenceCoverage(
   capsule: RequestCapsule,
   response: string,
 ): { readonly code: 'insufficient-evidence-coverage'; readonly message: string } | undefined {
-  const fileEvidence = capsule.context.find((item) => item.provenance === 'vscode.workspace.fs.readFile');
-  if (!fileEvidence) return undefined;
-
-  // The file header identifies a requested path, not source content. Assess
-  // only the text after it and record no source-derived details on failure.
-  const source = fileEvidence.content.slice(fileEvidence.content.indexOf('\n') + 1);
-  const sourceTerms = distinctTerms(source);
-  if (sourceTerms.length < 3) return undefined;
-  const responseTerms = new Set(distinctTerms(response));
-  const covered = sourceTerms.filter((term) => responseTerms.has(term)).length;
-  const required = Math.ceil(sourceTerms.length * 0.6);
-  if (covered >= required) return undefined;
+  const coverage = readFileEvidenceCoverage(capsule.context, response);
+  if (!coverage || coverage.meetsRequirement) return undefined;
   return {
     code: 'insufficient-evidence-coverage',
     message: 'Final response did not meet the deterministic evidence-coverage requirement.',
   };
-}
-
-function distinctTerms(value: string): readonly string[] {
-  return [...new Set(value.toLowerCase().match(/[a-z0-9]{4,}/g) ?? [])];
 }
