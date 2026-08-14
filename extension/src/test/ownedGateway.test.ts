@@ -44,8 +44,11 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
     assert.equal(body?.model, 'fast-local');
     assert.equal(body?.max_tokens, 9);
     assert.deepEqual(body?.tools, []);
-    const message = (body?.messages as { content: string }[])[0];
-    assert.deepEqual(JSON.parse(message.content), {
+    const messages = body?.messages as { role: string; content: string }[];
+    assert.equal(messages[0].role, 'system');
+    assert.match(messages[0].content, /Do not ask the user for a workspace path/);
+    assert.equal(messages[1].role, 'user');
+    assert.deepEqual(JSON.parse(messages[1].content), {
       task: 'Inspect the parser failure',
       phase: 'initialising',
       requestedDecision: 'Diagnose the failure.',

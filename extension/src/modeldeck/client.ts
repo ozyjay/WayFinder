@@ -1,7 +1,7 @@
 import { BackendId } from '../core/types';
 
 export interface OpenAiMessage {
-  readonly role: 'user' | 'assistant' | 'tool';
+  readonly role: 'system' | 'user' | 'assistant' | 'tool';
   readonly content: string | null;
   readonly tool_call_id?: string;
   readonly tool_calls?: readonly OpenAiToolCall[];

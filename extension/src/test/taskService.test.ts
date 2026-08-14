@@ -12,10 +12,14 @@ function completed(input: LoopInput): LoopOutcome {
 test('owned task service selects the requested initial tier and reports completion', async () => {
   const modes: string[] = [];
   const tiers: string[] = [];
+  let requestedDecision: string | undefined;
+  let constraints: readonly string[] | undefined;
   const service = new OwnedTaskService((mode) => ({
     async run(input) {
       modes.push(mode);
       tiers.push(input.initialState.modelTier);
+      requestedDecision = input.requestedDecision;
+      constraints = input.constraints;
       return completed(input);
     },
   }));
@@ -25,6 +29,8 @@ test('owned task service selects the requested initial tier and reports completi
   assert.deepEqual(modes, ['deep']);
   assert.deepEqual(tiers, ['deep']);
   assert.deepEqual(updates, ['preparing', 'running', 'completed']);
+  assert.match(requestedDecision ?? '', /gather the available workspace listing/);
+  assert.match(constraints?.join(' ') ?? '', /do not ask the user for its path/);
 });
 
 test('a superseded task cannot publish a stale completion', async () => {

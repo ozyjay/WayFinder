@@ -52,7 +52,11 @@ export class OwnedTaskService {
       const outcome = await this.createRuntime(request.mode).run({
         initialState,
         context: [],
-        requestedDecision: 'Respond to the user request.',
+        requestedDecision: 'Answer the task using supplied evidence. For a question about the workspace, project, repository, or files, gather the available workspace listing before a final answer when it is offered.',
+        constraints: [
+          'The open workspace root is already available through the listed read-only tools; do not ask the user for its path.',
+          'A workspace listing identifies direct entry names only; do not claim to know file contents unless they are supplied as evidence.',
+        ],
       }, controller.signal);
       report(outcomeUpdate(outcome));
     } catch {
