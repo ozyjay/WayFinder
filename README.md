@@ -63,7 +63,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 | `wayfinder.trace.enabled` | `true` | Enable local privacy-preserving Gate 0 traces. |
 | `wayfinder.runtime.inputBudget` | `4096` | Estimated input budget for the owned runtime; not an asserted model context limit. |
 | `wayfinder.runtime.outputBudget` | `1024` | Estimated output budget for the owned runtime. |
-| `wayfinder.runtime.maxIterations` | `4` | Bounded-loop iteration limit for the owned runtime. |
+| `wayfinder.runtime.maxIterations` | `5` | Bounded-loop iteration limit for the owned runtime. |
 
 No token, API key, or model identity is hard-coded. The supplied URL and model IDs are placeholders and must be set to match the local ModelDeck installation.
 

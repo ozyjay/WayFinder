@@ -226,6 +226,57 @@ test('a bounded file read is available after discovery and keeps source text tra
   assert.equal(JSON.stringify(diagnostics.entries).includes('cobalt-kookaburra'), false);
 });
 
+test('Auto retries and escalates when a file-backed answer omits too much evidence', async () => {
+  const gateway = new SequenceGateway([
+    { kind: 'final', text: '# Hello World' },
+    { kind: 'final', text: '# Hello World' },
+    { kind: 'final', text: '# Hello World\nWayFinder test marker: cobalt-kookaburra' },
+  ]);
+  const diagnostics = new InMemoryDiagnostics();
+  const { controller } = loop(gateway, new ToolRegistry(), diagnostics, { maxIterations: 3 });
+  const source = "Contents of requested workspace file 'Readme.md':\n# Hello World\nWayFinder test marker: cobalt-kookaburra";
+  const outcome = await controller.run({
+    initialState: state(),
+    context: [{
+      id: 'readme-content',
+      type: 'evidence',
+      content: source,
+      provenance: 'vscode.workspace.fs.readFile',
+      tokens: 8,
+      tokenCountKind: 'estimate',
+      priority: 100,
+    }],
+    requestedDecision: 'Summarise Readme.md.',
+  }, new AbortController().signal);
+
+  assert.equal(outcome.kind, 'completed');
+  assert.deepEqual(gateway.capsules.map((capsule) => capsule.modelTier), ['fast', 'fast', 'deep']);
+  assert.equal(diagnostics.entries.filter((entry) => entry.validationCode === 'insufficient-evidence-coverage').length, 3);
+  assert.equal(diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'), true);
+  assert.equal(JSON.stringify(diagnostics.entries).includes('cobalt-kookaburra'), false);
+});
+
+test('explicit Fast remains pinned when a file-backed answer omits evidence', async () => {
+  const gateway = new SequenceGateway([{ kind: 'final', text: '# Hello World' }]);
+  const { controller } = loop(gateway, new ToolRegistry(), new InMemoryDiagnostics(), { executionMode: 'fast' });
+  const outcome = await controller.run({
+    initialState: { ...state(), modelTier: 'fast' },
+    context: [{
+      id: 'readme-content',
+      type: 'evidence',
+      content: "Contents of requested workspace file 'Readme.md':\n# Hello World\nWayFinder test marker: cobalt-kookaburra",
+      provenance: 'vscode.workspace.fs.readFile',
+      tokens: 8,
+      tokenCountKind: 'estimate',
+      priority: 100,
+    }],
+    requestedDecision: 'Summarise Readme.md.',
+  }, new AbortController().signal);
+
+  assert.equal(outcome.kind, 'completed');
+  assert.deepEqual(gateway.capsules.map((capsule) => capsule.modelTier), ['fast']);
+});
+
 test('workspace file reading accepts only direct file names', () => {
   assert.equal(isDirectWorkspaceFileName('Readme.md'), true);
   assert.equal(isDirectWorkspaceFileName('docs/Readme.md'), false);

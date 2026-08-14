@@ -27,7 +27,7 @@ export function createConfiguredTaskService(
     new WorkspaceToolExecutor(),
     diagnostics,
     {
-      maxIterations: configuration.get<number>('runtime.maxIterations', 4),
+      maxIterations: configuration.get<number>('runtime.maxIterations', 5),
       executionMode: mode,
       escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 3 },
       approval: denyConsequentialActions,

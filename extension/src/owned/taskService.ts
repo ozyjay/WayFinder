@@ -56,6 +56,7 @@ export class OwnedTaskService {
         constraints: [
           'The open workspace root is already available through the listed read-only tools; do not ask the user for its path.',
           'A workspace listing identifies direct entry names only. If a file-content question needs more evidence and a read tool is available, request that tool; do not claim to know contents unless they are supplied as evidence.',
+          'In Auto mode, a response based on read file evidence must retain enough distinctive source terms to meet the deterministic evidence-coverage requirement.',
         ],
       }, controller.signal);
       report(outcomeUpdate(outcome));

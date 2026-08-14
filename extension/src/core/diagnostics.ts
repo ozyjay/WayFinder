@@ -22,7 +22,7 @@ export interface InferenceDiagnostic {
   readonly stablePrefixId: string;
   readonly latencyMs: number;
   readonly outcome: 'final' | 'tool-request' | 'validation-rejected' | 'approval-required' | 'cancelled' | 'stopped' | 'failed';
-  readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response';
+  readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response' | 'insufficient-evidence-coverage';
   readonly escalation?: 'fast-to-deep';
   readonly stopReason?: 'iteration-limit' | 'cancelled' | 'validation-limit' | 'tool-rejected';
   /** ModelDeck readiness snapshot; it does not identify the request-serving Worker. */

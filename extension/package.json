@@ -110,7 +110,7 @@
         },
         "wayfinder.runtime.maxIterations": {
           "type": "number",
-          "default": 4,
+          "default": 5,
           "minimum": 1,
           "multipleOf": 1,
           "description": "Maximum bounded-loop iterations for an owned WayFinder task."

@@ -84,6 +84,32 @@ export class BoundedAgentLoop {
       if (signal.aborted) return this.cancel(state, iteration);
 
       if (response.kind === 'final') {
+        const finalValidation = this.options.executionMode === 'auto'
+          ? validateEvidenceCoverage(capsule, response.text)
+          : undefined;
+        if (finalValidation) {
+          const next = this.addEvidence(state, {
+            id: `validation-${iteration}`,
+            type: 'validation',
+            summary: finalValidation.message,
+            provenance: 'final-response-validation',
+          });
+          await this.record(capsule, next, latencyMs, 'validation-rejected', finalValidation.code);
+          validationFailures += 1;
+          const terminal = await this.maybeEscalate(next, capsule, latencyMs, validationFailures, repairsAtTier, finalValidation.code);
+          if (terminal.kind === 'escalated') {
+            state = terminal.state;
+            repairsAtTier = 0;
+            continue;
+          }
+          repairsAtTier += 1;
+          if (validationFailures >= this.options.escalation.maximumValidationFailures) {
+            const failed = transitionExecutionState(next, 'failed', 'failed');
+            return { kind: 'failed', state: failed, reason: 'validation-limit' };
+          }
+          state = next;
+          continue;
+        }
         const completed = transitionExecutionState(state, 'completed', 'completed');
         await this.record(capsule, completed, latencyMs, 'final');
         return { kind: 'completed', state: completed, response: response.text };
@@ -289,4 +315,30 @@ function emptyContextCharacterCounts(): Record<'goal' | 'instruction' | 'evidenc
 
 function stablePrefixId(state: ExecutionState): string {
   return `wayfinder:${state.modelTier}:${state.phase}:${state.budget.input.limit}:${state.budget.output.limit}`;
+}
+
+function validateEvidenceCoverage(
+  capsule: RequestCapsule,
+  response: string,
+): { readonly code: 'insufficient-evidence-coverage'; readonly message: string } | undefined {
+  const fileEvidence = capsule.context.find((item) => item.provenance === 'vscode.workspace.fs.readFile');
+  if (!fileEvidence) return undefined;
+
+  // The file header identifies a requested path, not source content. Assess
+  // only the text after it and record no source-derived details on failure.
+  const source = fileEvidence.content.slice(fileEvidence.content.indexOf('\n') + 1);
+  const sourceTerms = distinctTerms(source);
+  if (sourceTerms.length < 3) return undefined;
+  const responseTerms = new Set(distinctTerms(response));
+  const covered = sourceTerms.filter((term) => responseTerms.has(term)).length;
+  const required = Math.ceil(sourceTerms.length * 0.6);
+  if (covered >= required) return undefined;
+  return {
+    code: 'insufficient-evidence-coverage',
+    message: 'Final response did not meet the deterministic evidence-coverage requirement.',
+  };
+}
+
+function distinctTerms(value: string): readonly string[] {
+  return [...new Set(value.toLowerCase().match(/[a-z0-9]{4,}/g) ?? [])];
 }
