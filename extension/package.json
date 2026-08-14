@@ -37,6 +37,7 @@
     "views": {
       "wayfinder": [
         {
+          "type": "webview",
           "id": "wayfinder.taskView",
           "name": "WayFinder"
         }
