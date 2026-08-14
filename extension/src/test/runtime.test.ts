@@ -9,7 +9,11 @@ import { selectBackend } from '../core/router';
 import {
   MAX_WORKSPACE_ENTRIES,
   WORKSPACE_OBSERVE_CAPABILITY,
+  WORKSPACE_READ_CAPABILITY,
+  READ_WORKSPACE_TEXT_FILE_TOOL_ID,
+  isDirectWorkspaceFileName,
   listWorkspaceEntriesTool,
+  readWorkspaceTextFileTool,
   summariseWorkspaceEntries,
 } from '../core/workspaceTools';
 
@@ -165,6 +169,69 @@ test('workspace discovery is removed from the next inference after one successfu
     ['list_workspace_entries'],
     [],
   ]);
+});
+
+test('a bounded file read is available after discovery and keeps source text transient', async () => {
+  const gateway = new SequenceGateway([
+    { kind: 'tool-request', request: { toolId: 'list_workspace_entries', arguments: {} } },
+    { kind: 'tool-request', request: { toolId: READ_WORKSPACE_TEXT_FILE_TOOL_ID, arguments: { path: 'Readme.md' } } },
+    { kind: 'final', text: 'The README contains the cobalt-kookaburra marker.' },
+  ]);
+  const workspaceExecutor: ToolExecutor = {
+    async execute(request) {
+      if (request.tool.id === 'list_workspace_entries') {
+        return { evidenceSummary: 'Top-level workspace entries: Readme.md (file).', provenance: 'vscode.workspace.fs.readDirectory' };
+      }
+      return {
+        evidenceSummary: 'Read one bounded workspace text file; its contents are transient evidence.',
+        provenance: 'vscode.workspace.fs.readFile',
+        transientModelContext: {
+          type: 'evidence',
+          content: "Contents of requested workspace file 'Readme.md':\nWayFinder test marker: cobalt-kookaburra",
+          provenance: 'vscode.workspace.fs.readFile',
+          tokens: 3,
+          tokenCountKind: 'estimate',
+          priority: 100,
+        },
+      };
+    },
+  };
+  const diagnostics = new InMemoryDiagnostics();
+  const controller = new BoundedAgentLoop(
+    gateway,
+    new ToolRegistry([listWorkspaceEntriesTool, readWorkspaceTextFileTool]),
+    workspaceExecutor,
+    diagnostics,
+    {
+      maxIterations: 4,
+      executionMode: 'auto',
+      escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 5 },
+      approval: { decide: () => 'approved' as const },
+    },
+  );
+  const outcome = await controller.run({
+    initialState: state([WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY]),
+    context: [],
+    requestedDecision: 'Summarise Readme.md.',
+  }, new AbortController().signal);
+
+  assert.equal(outcome.kind, 'completed');
+  assert.deepEqual(gateway.capsules.map((capsule) => capsule.tools.map((tool) => tool.id)), [
+    ['list_workspace_entries'],
+    [READ_WORKSPACE_TEXT_FILE_TOOL_ID],
+    [],
+  ]);
+  assert.match(gateway.capsules[2].context[0].content, /cobalt-kookaburra/);
+  assert.equal(JSON.stringify(outcome.state).includes('cobalt-kookaburra'), false);
+  assert.equal(JSON.stringify(diagnostics.entries).includes('cobalt-kookaburra'), false);
+});
+
+test('workspace file reading accepts only direct file names', () => {
+  assert.equal(isDirectWorkspaceFileName('Readme.md'), true);
+  assert.equal(isDirectWorkspaceFileName('docs/Readme.md'), false);
+  assert.equal(isDirectWorkspaceFileName('../Readme.md'), false);
+  assert.equal(isDirectWorkspaceFileName(''), false);
+  assert.equal(isDirectWorkspaceFileName('readme\0md'), false);
 });
 
 test('an approval-required tool stops at an explicit approval boundary', async () => {

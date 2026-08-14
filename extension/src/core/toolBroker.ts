@@ -1,4 +1,5 @@
 import { ExecutionState } from './executionState';
+import type { ContextItem } from './requestCapsule';
 
 export type ToolRisk = 'read-only' | 'consequential';
 export type JsonObject = { readonly [key: string]: JsonValue };
@@ -42,6 +43,11 @@ export interface ToolExecutionResult {
   readonly rawOutput?: string;
   readonly evidenceSummary: string;
   readonly provenance: string;
+  /**
+   * Bounded source text for only the next inference. It is intentionally not
+   * copied to durable task state or diagnostics.
+   */
+  readonly transientModelContext?: Omit<ContextItem, 'id'>;
 }
 
 export interface ToolExecutor {

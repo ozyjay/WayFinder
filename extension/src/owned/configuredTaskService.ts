@@ -4,10 +4,15 @@ import { JsonlRuntimeDiagnostics } from '../core/diagnostics';
 import { createExecutionState, defaultBudget } from '../core/executionState';
 import { BoundedAgentLoop, ModelGateway, denyConsequentialActions } from '../core/runtime';
 import { ToolRegistry } from '../core/toolBroker';
-import { WORKSPACE_OBSERVE_CAPABILITY, listWorkspaceEntriesTool } from '../core/workspaceTools';
+import {
+  WORKSPACE_OBSERVE_CAPABILITY,
+  WORKSPACE_READ_CAPABILITY,
+  listWorkspaceEntriesTool,
+  readWorkspaceTextFileTool,
+} from '../core/workspaceTools';
 import { ModelDeckSettings } from '../modeldeck/client';
 import { ModelDeckOwnedGateway, OwnedMockGateway } from '../modeldeck/ownedGateway';
-import { WorkspaceListToolExecutor } from '../participant/workspaceListTool';
+import { WorkspaceToolExecutor } from '../participant/workspaceListTool';
 import { OwnedTaskService } from './taskService';
 
 /** Wires VS Code configuration and workspace capabilities into the task service. */
@@ -18,8 +23,8 @@ export function createConfiguredTaskService(
   const diagnostics = new JsonlRuntimeDiagnostics(join(context.globalStorageUri.fsPath, 'runtime.jsonl'));
   return new OwnedTaskService((mode) => new BoundedAgentLoop(
     gatewayFor(configuration),
-    new ToolRegistry([listWorkspaceEntriesTool]),
-    new WorkspaceListToolExecutor(),
+    new ToolRegistry([listWorkspaceEntriesTool, readWorkspaceTextFileTool]),
+    new WorkspaceToolExecutor(),
     diagnostics,
     {
       maxIterations: configuration.get<number>('runtime.maxIterations', 4),
@@ -33,7 +38,7 @@ export function createConfiguredTaskService(
       input: { limit: configuration.get<number>('runtime.inputBudget', defaultBudget().input.limit), countKind: 'estimate' },
       output: { limit: configuration.get<number>('runtime.outputBudget', defaultBudget().output.limit), countKind: 'estimate' },
     },
-    allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY],
+    allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY],
   }));
 }
 

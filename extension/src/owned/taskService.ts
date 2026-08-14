@@ -1,6 +1,6 @@
 import { ExecutionMode, ExecutionState, createExecutionState } from '../core/executionState';
 import { LoopInput, LoopOutcome } from '../core/runtime';
-import { WORKSPACE_OBSERVE_CAPABILITY } from '../core/workspaceTools';
+import { READ_WORKSPACE_TEXT_FILE_TOOL_ID, WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY } from '../core/workspaceTools';
 
 export interface OwnedTaskRequest {
   readonly taskId: string;
@@ -48,14 +48,14 @@ export class OwnedTaskService {
       const initialState = this.createInitialState(request.goal, request.mode);
       const initialTier = initialState.modelTier;
       report({ state: 'preparing', modelTier: initialTier, message: 'Preparing a compact task context.' });
-      report({ state: 'running', modelTier: initialTier, message: `Running locally with ${labelTier(initialTier)}. A bounded read-only workspace listing is available if needed.` });
+      report({ state: 'running', modelTier: initialTier, message: `Running locally with ${labelTier(initialTier)}. Bounded read-only workspace evidence is available if needed.` });
       const outcome = await this.createRuntime(request.mode).run({
         initialState,
         context: [],
         requestedDecision: 'Answer the task using supplied evidence. For a question about the workspace, project, repository, or files, gather the available workspace listing before a final answer when it is offered.',
         constraints: [
           'The open workspace root is already available through the listed read-only tools; do not ask the user for its path.',
-          'A workspace listing identifies direct entry names only; do not claim to know file contents unless they are supplied as evidence.',
+          'A workspace listing identifies direct entry names only. If a file-content question needs more evidence and a read tool is available, request that tool; do not claim to know contents unless they are supplied as evidence.',
         ],
       }, controller.signal);
       report(outcomeUpdate(outcome));
@@ -76,13 +76,15 @@ export class OwnedTaskService {
 function defaultInitialState(goal: string, mode: ExecutionMode): ExecutionState {
   return createExecutionState(goal, {
     modelTier: mode === 'deep' ? 'deep' : 'fast',
-    allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY],
+    allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY],
   });
 }
 
 function outcomeUpdate(outcome: LoopOutcome): Omit<OwnedTaskUpdate, 'taskId'> {
   if (outcome.kind === 'completed') {
-    const toolSummary = outcome.state.completedActions.length ? ' Used the bounded read-only workspace listing.' : '';
+    const toolSummary = outcome.state.completedActions.some((action) => action.toolId === READ_WORKSPACE_TEXT_FILE_TOOL_ID)
+      ? ' Used bounded read-only workspace evidence.'
+      : outcome.state.completedActions.length ? ' Used the bounded read-only workspace listing.' : '';
     return { state: 'completed', modelTier: outcome.state.modelTier, message: `Completed with ${labelTier(outcome.state.modelTier)}.${toolSummary}`, response: outcome.response };
   }
   if (outcome.kind === 'awaiting-approval') {

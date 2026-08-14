@@ -64,13 +64,14 @@ export class BoundedAgentLoop {
 
   public async run(input: LoopInput, signal: AbortSignal): Promise<LoopOutcome> {
     let state = input.initialState;
+    let transientContext: readonly ContextItem[] = [];
     let validationFailures = 0;
     let repairsAtTier = 0;
 
     for (let iteration = 1; iteration <= this.options.maxIterations; iteration += 1) {
       if (signal.aborted) return this.cancel(state, iteration);
       state = transitionExecutionState(state, 'planning', 'active', { iteration });
-      const capsule = this.capsule(state, input);
+      const capsule = this.capsule(state, input, transientContext);
       const startedAt = performance.now();
       let response: ModelResponse;
       try {
@@ -132,6 +133,12 @@ export class BoundedAgentLoop {
         const toolResult = await this.executor.execute({ tool: validation.tool, arguments: validation.arguments }, signal);
         if (signal.aborted) return this.cancel(acting, iteration);
         state = this.observe(acting, validation.tool.id, toolResult, iteration);
+        if (toolResult.transientModelContext) {
+          transientContext = [...transientContext, {
+            ...toolResult.transientModelContext,
+            id: `tool-context-${iteration}`,
+          }];
+        }
         await this.record(capsule, state, latencyMs, 'tool-request');
         continue;
       }
@@ -163,10 +170,10 @@ export class BoundedAgentLoop {
     return { kind: 'stopped', state: stopped, reason: 'iteration-limit' };
   }
 
-  private capsule(state: ExecutionState, input: LoopInput): RequestCapsule {
+  private capsule(state: ExecutionState, input: LoopInput, transientContext: readonly ContextItem[] = []): RequestCapsule {
     const capsuleInput: CapsuleInput = {
       state,
-      candidates: input.context,
+      candidates: [...input.context, ...transientContext],
       tools: this.tools.present(state),
       requestedDecision: input.requestedDecision,
       constraints: input.constraints,

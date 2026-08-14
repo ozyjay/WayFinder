@@ -1,8 +1,11 @@
 import { ToolDefinition } from './toolBroker';
 
 export const WORKSPACE_OBSERVE_CAPABILITY = 'workspace.observe';
+export const WORKSPACE_READ_CAPABILITY = 'workspace.read';
 export const LIST_WORKSPACE_ENTRIES_TOOL_ID = 'list_workspace_entries';
+export const READ_WORKSPACE_TEXT_FILE_TOOL_ID = 'read_workspace_text_file';
 export const MAX_WORKSPACE_ENTRIES = 40;
+export const MAX_WORKSPACE_TEXT_FILE_BYTES = 12 * 1024;
 
 export type WorkspaceEntryKind = 'file' | 'directory' | 'symbolic-link' | 'unknown';
 
@@ -31,6 +34,33 @@ export const listWorkspaceEntriesTool: ToolDefinition = {
   expectedOutputClass: 'evidence',
   isAvailable: (state) => !state.completedActions.some((action) => action.toolId === LIST_WORKSPACE_ENTRIES_TOOL_ID),
 };
+
+/**
+ * A single direct UTF-8 text-file read, available only after workspace
+ * discovery. Its bounded content becomes transient model context for the next
+ * inference; it never enters task state or diagnostics.
+ */
+export const readWorkspaceTextFileTool: ToolDefinition = {
+  id: READ_WORKSPACE_TEXT_FILE_TOOL_ID,
+  capabilities: [WORKSPACE_READ_CAPABILITY],
+  description: `Read one direct UTF-8 text file from the open workspace root, up to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes. Use the exact file name returned by the workspace listing.`,
+  inputSchema: { type: 'object', required: ['path'], properties: { path: { type: 'string' } } },
+  risk: 'read-only',
+  requiresApproval: false,
+  expectedOutputClass: 'evidence',
+  isAvailable: (state) => state.completedActions.some((action) => action.toolId === LIST_WORKSPACE_ENTRIES_TOOL_ID)
+    && !state.completedActions.some((action) => action.toolId === READ_WORKSPACE_TEXT_FILE_TOOL_ID),
+};
+
+/** Only direct file names are accepted: no nested paths, traversal, or NULs. */
+export function isDirectWorkspaceFileName(value: string): boolean {
+  return Boolean(value)
+    && value !== '.'
+    && value !== '..'
+    && !value.includes('/')
+    && !value.includes('\\')
+    && !value.includes('\0');
+}
 
 export function summariseWorkspaceEntries(
   roots: readonly WorkspaceRootEntries[],

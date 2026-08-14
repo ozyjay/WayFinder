@@ -23,7 +23,7 @@ This makes a Fast → Deep → Fast sequence observable in a trace without prese
 - A status-bar indicator and commands to view or clear the trace.
 - An initial owned-runtime foundation, surfaced in the dedicated **WayFinder** Activity Bar view. It has serialisable execution state, a model-neutral request capsule, deterministic context budgets, a capability-based tool broker, bounded-loop transitions, cancellation, validation repair/escalation, and privacy-conscious diagnostics.
 
-The owned-runtime chat surface currently exposes one executable capability: a bounded, one-time, read-only listing of direct entries in the open workspace roots. It does not recurse, read file contents, edit files, run commands, or make consequential calls. Filenames are sent to the model only when it explicitly requests the tool; diagnostics remain metadata-only.
+The owned-runtime chat surface currently exposes two bounded, read-only capabilities. It can list direct entries in the open workspace roots, then read one direct regular UTF-8 text file named by that listing (up to 12 KiB). It does not recurse, follow symbolic links, edit files, run commands, or make consequential calls. File content is transient model evidence for the next inference only; diagnostics remain metadata-only.
 
 The implementation follows VS Code's public [Language Model Chat Provider API](https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider). That API supplies the complete message sequence to the provider and permits text, tool-call, and tool-result response parts. VS Code's current API reference also documents tool results as input parts, which is the critical evidence required for per-invocation routing.
 
@@ -49,7 +49,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 1. Run the extension in an Extension Development Host as above.
 2. Open **WayFinder** from its Activity Bar icon or run **WayFinder: Open**. This surface owns the compact request capsule and loop rather than forwarding Copilot's assembled agent transcript.
 3. Enter a task and leave the tier set to **Auto** (the default), or explicitly select **Fast** or **Deep** for that task. Auto starts Fast and may escalate to Deep after deterministic validation repairs; explicit tiers remain pinned.
-4. To exercise its first read-only capability, ask: `List the top-level files in this workspace.` Leave `wayfinder.backendMode` as `mock` for a deterministic response, or configure local ModelDeck settings to use a local model.
+4. To exercise the bounded read-only path, configure a local ModelDeck backend, then ask: `What does Readme.md in this project say?` WayFinder first lists direct workspace entries, then may read the named file. Mock mode verifies the sidebar and trace path but does not request tools.
 5. Use the sidebar's **Show runtime diagnostics** action or **WayFinder: Show Runtime Diagnostics** to inspect metadata-only JSONL records. It records mode, tier, budgets, context categories and provenance, exposed-tool size, validation outcomes, escalation, latency, and stop reasons—never prompts, source contents, arguments, or raw tool outputs.
 
 ## Configuration
@@ -89,4 +89,4 @@ protocol/   Language-neutral trace and diagnostic schemas
 docs/       Gate evidence and owned-runtime architecture
 ```
 
-Future gates will add concrete read-only capability adapters, approval presentation and resumption, model discovery/tokenizer integration, selected repository context, and replay evaluation. Those are intentionally excluded from the present foundation.
+Future gates will add further read-only capability adapters, approval presentation and resumption, model discovery/tokenizer integration, selected repository context, and replay evaluation. Those are intentionally excluded from the present foundation.

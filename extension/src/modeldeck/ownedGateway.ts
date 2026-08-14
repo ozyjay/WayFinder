@@ -89,6 +89,6 @@ function ownedRuntimeInstructions(): string {
     'Use only the supplied evidence when making claims about a workspace or its files.',
     'When an available read-only tool can obtain evidence needed for a workspace, project, repository, or file question, call it before returning a final answer.',
     'Do not ask the user for a workspace path: available workspace tools operate on the open workspace roots.',
-    'A workspace-entry listing identifies names only. Do not claim to have read a file unless its contents are present in supplied evidence.',
+    'A workspace-entry listing identifies names only. If it is insufficient and a text-file read tool is available, call that tool rather than guessing. Do not claim to have read a file unless its contents are present in supplied evidence.',
   ].join(' ');
 }
