@@ -69,7 +69,7 @@ No token, API key, or model identity is hard-coded. The supplied URL and model I
 
 ## Run the live readback evaluation
 
-The automated readback evaluation runs the same harmless, fixed `Readme.md` fixture through Fast, Deep, and Auto. It verifies the bounded list → read evidence path and requires Deep and Auto answers to meet the deterministic evidence-coverage threshold. It prints metadata only: tiers, iterations, latency, tool IDs, validation codes, escalation, and coverage counts—never model replies or source text.
+The automated readback evaluation runs the same harmless, fixed `Readme.md` fixture through Fast, Deep, and Auto. For this fixture only, every inference that exposes a tool sends the standard OpenAI-compatible `tool_choice: "required"` setting; normal sidebar tasks retain automatic tool choice. The evaluation verifies the bounded list → read evidence path and requires Deep and Auto answers to meet the deterministic evidence-coverage threshold. It prints metadata only: tiers, iterations, latency, tool IDs, validation codes, escalation, and coverage counts—never model replies or source text.
 
 It is deliberately separate from `npm test`, because it sends live requests to the local ModelDeck service. Provide the same local route details used by WayFinder:
 

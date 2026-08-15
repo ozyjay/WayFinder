@@ -93,6 +93,7 @@ async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promi
     context: [],
     requestedDecision: WORKSPACE_TASK_REQUESTED_DECISION,
     constraints: WORKSPACE_TASK_CONSTRAINTS,
+    toolRequestMode: 'required',
   }, new AbortController().signal);
 
   const expectedToolIds = [LIST_WORKSPACE_ENTRIES_TOOL_ID, READ_WORKSPACE_TEXT_FILE_TOOL_ID];

@@ -21,7 +21,7 @@ export class ModelDeckOwnedGateway implements ModelGateway {
         type: 'function' as const,
         function: { name: tool.id, description: tool.description, parameters: tool.inputSchema },
       })),
-      toolChoice: 'auto',
+      toolChoice: capsule.toolRequestMode,
       maxTokens: capsule.budget.output.limit,
     }, signal);
 
@@ -75,6 +75,7 @@ function renderCapsule(capsule: RequestCapsule): string {
       evidence,
       constraints: capsule.constraints,
       responseContract: capsule.responseContract,
+      toolRequestMode: capsule.toolRequestMode,
       inputBudget: capsule.budget.input,
       outputBudget: capsule.budget.output,
     }),
@@ -91,5 +92,6 @@ function ownedRuntimeInstructions(): string {
     'Do not ask the user for a workspace path: available workspace tools operate on the open workspace roots.',
     'A workspace-entry listing identifies names only. If it is insufficient and a text-file read tool is available, call that tool rather than guessing. Do not claim to have read a file unless its contents are present in supplied evidence.',
     'When source text is supplied as evidence, retain enough distinctive source terms for the answer to be auditable.',
+    'When the capsule requires a tool request and tools are supplied, call exactly one supplied tool instead of returning a final answer.',
   ].join(' ');
 }

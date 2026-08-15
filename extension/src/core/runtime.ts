@@ -37,6 +37,8 @@ export interface LoopInput {
   readonly context: readonly ContextItem[];
   readonly requestedDecision: string;
   readonly constraints?: readonly string[];
+  /** Optional deterministic policy for the next model action. */
+  readonly toolRequestMode?: 'auto' | 'required';
 }
 
 export type LoopOutcome =
@@ -202,6 +204,7 @@ export class BoundedAgentLoop {
       state,
       candidates: [...input.context, ...transientContext],
       tools: this.tools.present(state),
+      toolRequestMode: input.toolRequestMode,
       requestedDecision: input.requestedDecision,
       constraints: input.constraints,
     };

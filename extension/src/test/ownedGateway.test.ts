@@ -30,7 +30,12 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
         tokenCountKind: 'estimate',
         priority: 1,
       }],
-      tools: [],
+      tools: [{
+        id: 'list_workspace_entries',
+        description: 'List direct workspace entries.',
+        inputSchema: { type: 'object' },
+      }],
+      toolRequestMode: 'required',
       requestedDecision: 'Diagnose the failure.',
     });
     const gateway = new ModelDeckOwnedGateway({
@@ -43,7 +48,15 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
     assert.deepEqual(response, { kind: 'final', text: 'Done.' });
     assert.equal(body?.model, 'fast-local');
     assert.equal(body?.max_tokens, 9);
-    assert.deepEqual(body?.tools, []);
+    assert.deepEqual(body?.tools, [{
+      type: 'function',
+      function: {
+        name: 'list_workspace_entries',
+        description: 'List direct workspace entries.',
+        parameters: { type: 'object' },
+      },
+    }]);
+    assert.equal(body?.tool_choice, 'required');
     const messages = body?.messages as { role: string; content: string }[];
     assert.equal(messages[0].role, 'system');
     assert.match(messages[0].content, /Do not ask the user for a workspace path/);
@@ -56,6 +69,7 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
       evidence: [],
       constraints: [],
       responseContract: 'Return either a concise final response or one validated tool request.',
+      toolRequestMode: 'required',
       inputBudget: { limit: 25, countKind: 'estimate' },
       outputBudget: { limit: 9, countKind: 'estimate' },
     });

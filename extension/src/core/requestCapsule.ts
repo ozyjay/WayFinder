@@ -29,6 +29,8 @@ export interface RequestCapsule {
   readonly context: readonly ContextItem[];
   readonly excludedContext: readonly ExcludedContextItem[];
   readonly tools: readonly PresentedTool[];
+  /** Whether this inference may finish without using one of its presented tools. */
+  readonly toolRequestMode: 'auto' | 'required';
   readonly constraints: readonly string[];
   readonly responseContract: string;
   readonly budget: ContextBudget;
@@ -38,6 +40,7 @@ export interface CapsuleInput {
   readonly state: ExecutionState;
   readonly candidates: readonly ContextItem[];
   readonly tools: readonly PresentedTool[];
+  readonly toolRequestMode?: RequestCapsule['toolRequestMode'];
   readonly requestedDecision: string;
   readonly constraints?: readonly string[];
 }
@@ -53,6 +56,7 @@ export function compileRequestCapsule(input: CapsuleInput): RequestCapsule {
     context: selected.included,
     excludedContext: selected.excluded,
     tools: input.tools,
+    toolRequestMode: input.toolRequestMode ?? 'auto',
     constraints: input.constraints ?? [],
     responseContract: 'Return either a concise final response or one validated tool request.',
     budget: input.state.budget,

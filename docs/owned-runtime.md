@@ -72,7 +72,13 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 1. **Gate 1a — foundation (implemented):** contracts, deterministic compiler, bounded loop, diagnostics, mock/ModelDeck gateway, and task-first sidebar.
 2. **Gate 1b — safe observation (started):** bounded workspace listing and one direct UTF-8 text-file read are implemented. Language-service adapters, broader context collectors, and approval/resumption UI remain future work.
 3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
-4. **Gate 1d — evaluation:** `npm run eval:readback` is an opt-in live ModelDeck check of the fixed bounded-readback fixture under Fast, Deep, and Auto. It asserts the list → read path and evidence coverage for Deep and Auto, then emits metadata-only tier, tool, validation, escalation, coverage-count, iteration, and latency results. The fixture is a first matched task; extend it before drawing broader routing conclusions.
+4. **Gate 1d — evaluation:** `npm run eval:readback` is an opt-in live ModelDeck check of the fixed bounded-readback fixture under Fast, Deep, and Auto. For this fixture only, each inference with an exposed tool sets the standard OpenAI-compatible `tool_choice` value to `required`; ordinary sidebar tasks retain automatic tool choice. It asserts the list → read path and evidence coverage for Deep and Auto, then emits metadata-only tier, tool, validation, escalation, coverage-count, iteration, and latency results. The fixture is a first matched task; extend it before drawing broader routing conclusions.
+
+## Gate 1d observed result — 15 August 2026
+
+The first live readback evaluation against the configured local Fast and Deep routes did not pass. Both explicit Fast and explicit Deep completed a first inference without a structured tool call, even when the fixture supplied tools and requested the standard OpenAI-compatible `tool_choice: "required"` setting. Auto also completed on Fast at the first inference, so no deterministic evidence validation or Fast-to-Deep escalation occurred.
+
+This result establishes a current tool-call capability or model-template limitation at the local ModelDeck boundary. It does not establish a routing-policy failure, because the bounded list → read path never began. Preserve the metadata-only evaluation report and use ModelDeck capability rehearsal or a compatible tool-call template before extending WayFinder's autonomy boundary.
 5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 
 ## Open questions and risks
