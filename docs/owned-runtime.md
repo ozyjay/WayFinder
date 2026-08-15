@@ -74,11 +74,19 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
 4. **Gate 1d — evaluation:** `npm run eval:readback` is an opt-in live ModelDeck check of the fixed bounded-readback fixture under Fast, Deep, and Auto. For this fixture only, each inference with an exposed tool sets the standard OpenAI-compatible `tool_choice` value to `required`; ordinary sidebar tasks retain automatic tool choice. It asserts the list → read path and evidence coverage for Deep and Auto, then emits metadata-only tier, tool, validation, escalation, coverage-count, iteration, and latency results. The fixture is a first matched task; extend it before drawing broader routing conclusions.
 
-## Gate 1d observed result — 15 August 2026
+## Gate 1d observed results
+
+### Initial capability boundary — 15 August 2026
 
 The first live readback evaluation against the configured local Fast and Deep routes did not pass. Before capability rehearsal, both explicit Fast and explicit Deep completed a first inference without a structured tool call, even when the fixture supplied tools and requested the standard OpenAI-compatible `tool_choice: "required"` setting. Auto also completed on Fast at the first inference, so no deterministic evidence validation or Fast-to-Deep escalation occurred.
 
 After ModelDeck capability rehearsal, the same fixture produced explicit HTTP 422 backend errors for Fast, Deep, and Auto. ModelDeck correctly enforced the required-tool contract rather than silently accepting a text response, but the local Qwen Workers still did not emit native structured tool calls. This establishes a current Worker tool-call capability or chat-template limitation, not a WayFinder routing-policy failure, because the bounded list → read path never began. Preserve the metadata-only evaluation report and use a compatible tool-call template or Worker before extending WayFinder's autonomy boundary.
+
+### Bounded readback pass — 16 August 2026
+
+After the local routes were configured to emit native structured tool calls, the evaluation passed its Deep and Auto acceptance criteria. Both followed the bounded `list_workspace_entries` then `read_workspace_text_file` path. Deep completed in three iterations and met evidence coverage directly. Auto began on Fast, recorded three deterministic insufficient-evidence validations, escalated to Deep, and completed with the required evidence coverage in five iterations.
+
+Fast also completed the safe tool path in three iterations but did not meet the evidence-coverage threshold. This is expected comparison evidence: the fixture requires Deep and Auto to pass, while Fast remains informative about the smaller model's limits. The measured end-to-end model latency was approximately 51 seconds for Deep and 29 seconds for Auto; this is operational evidence to consider before widening the runtime's scope.
 5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 
 ## Open questions and risks
