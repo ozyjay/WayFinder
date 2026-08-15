@@ -22,12 +22,14 @@ const FIXTURE_CONTEXT_CONTENT = `Contents of requested workspace file '${FIXTURE
 interface TrialReport {
   readonly mode: ExecutionMode;
   readonly finalTier: 'fast' | 'deep';
+  readonly outcome: LoopOutcome['kind'];
   readonly iterations: number;
   readonly latencyMs: number;
   readonly toolIds: readonly string[];
+  readonly followedBoundedReadPath: boolean;
   readonly validationCodes: readonly string[];
   readonly escalated: boolean;
-  readonly evidenceCoverage: {
+  readonly evidenceCoverage?: {
     readonly sourceTermCount: number;
     readonly coveredTermCount: number;
     readonly requiredTermCount: number;
@@ -46,19 +48,26 @@ async function main(): Promise<void> {
     reports.push(await runTrial(mode, settings));
   }
 
-  const deep = reports.find((report) => report.mode === 'deep');
-  const auto = reports.find((report) => report.mode === 'auto');
-  if (!deep?.evidenceCoverage.meetsRequirement) {
-    throw new Error('Deep did not meet the readback evidence-coverage requirement.');
-  }
-  if (!auto?.evidenceCoverage.meetsRequirement) {
-    throw new Error('Auto did not produce an answer meeting the readback evidence-coverage requirement.');
-  }
-
   process.stdout.write(`${JSON.stringify({
     fixture: 'bounded-readback-v1',
     trials: reports,
   }, null, 2)}\n`);
+
+  const deep = reports.find((report) => report.mode === 'deep');
+  const auto = reports.find((report) => report.mode === 'auto');
+  if (!deep?.followedBoundedReadPath) {
+    throw new Error('Deep did not follow the bounded workspace-listing and file-read path.');
+  }
+  if (!deep.evidenceCoverage?.meetsRequirement) {
+    throw new Error('Deep did not meet the readback evidence-coverage requirement.');
+  }
+  if (!auto?.followedBoundedReadPath) {
+    throw new Error('Auto did not follow the bounded workspace-listing and file-read path.');
+  }
+  if (!auto.evidenceCoverage?.meetsRequirement) {
+    throw new Error('Auto did not produce an answer meeting the readback evidence-coverage requirement.');
+  }
+
 }
 
 async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promise<TrialReport> {
@@ -86,20 +95,20 @@ async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promi
     constraints: WORKSPACE_TASK_CONSTRAINTS,
   }, new AbortController().signal);
 
-  const response = completedResponse(outcome, mode);
-  const evidenceCoverage = readFileEvidenceCoverage([{ id: 'fixture-readme', ...fixtureContextItem() }], response);
-  if (!evidenceCoverage) throw new Error(`${mode} did not receive readback evidence.`);
   const expectedToolIds = [LIST_WORKSPACE_ENTRIES_TOOL_ID, READ_WORKSPACE_TEXT_FILE_TOOL_ID];
-  if (JSON.stringify(executor.toolIds) !== JSON.stringify(expectedToolIds)) {
-    throw new Error(`${mode} did not follow the bounded workspace-listing and file-read path.`);
-  }
+  const followedBoundedReadPath = JSON.stringify(executor.toolIds) === JSON.stringify(expectedToolIds);
+  const evidenceCoverage = outcome.kind === 'completed'
+    ? readFileEvidenceCoverage([{ id: 'fixture-readme', ...fixtureContextItem() }], outcome.response)
+    : undefined;
 
   return {
     mode,
     finalTier: outcome.state.modelTier,
-    iterations: Math.max(...diagnostics.entries.map((entry) => entry.iteration)),
+    outcome: outcome.kind,
+    iterations: Math.max(0, ...diagnostics.entries.map((entry) => entry.iteration)),
     latencyMs: diagnostics.entries.reduce((total, entry) => total + entry.latencyMs, 0),
     toolIds: executor.toolIds,
+    followedBoundedReadPath,
     validationCodes: diagnostics.entries.flatMap((entry) => entry.validationCode ? [entry.validationCode] : []),
     escalated: diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'),
     evidenceCoverage,
@@ -138,13 +147,6 @@ function fixtureContextItem() {
     tokenCountKind: 'estimate' as const,
     priority: 100,
   };
-}
-
-function completedResponse(outcome: LoopOutcome, mode: ExecutionMode): string {
-  if (outcome.kind !== 'completed') {
-    throw new Error(`${mode} did not complete the bounded readback evaluation.`);
-  }
-  return outcome.response;
 }
 
 function settingsFromEnvironment(environment: NodeJS.ProcessEnv): ModelDeckSettings {
