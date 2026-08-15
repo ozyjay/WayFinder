@@ -11,7 +11,7 @@ import {
   listWorkspaceEntriesTool,
   readWorkspaceTextFileTool,
 } from '../core/workspaceTools';
-import { ModelDeckSettings } from '../modeldeck/client';
+import { ModelDeckError, ModelDeckSettings } from '../modeldeck/client';
 import { ModelDeckOwnedGateway } from '../modeldeck/ownedGateway';
 import { WORKSPACE_TASK_CONSTRAINTS, WORKSPACE_TASK_REQUESTED_DECISION } from '../owned/taskService';
 
@@ -22,7 +22,8 @@ const FIXTURE_CONTEXT_CONTENT = `Contents of requested workspace file '${FIXTURE
 interface TrialReport {
   readonly mode: ExecutionMode;
   readonly finalTier: 'fast' | 'deep';
-  readonly outcome: LoopOutcome['kind'];
+  readonly outcome: LoopOutcome['kind'] | 'backend-error';
+  readonly backendErrorCode?: string;
   readonly iterations: number;
   readonly latencyMs: number;
   readonly toolIds: readonly string[];
@@ -73,6 +74,10 @@ async function main(): Promise<void> {
 async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promise<TrialReport> {
   const diagnostics = new InMemoryDiagnostics();
   const executor = new ReadbackFixtureExecutor();
+  const initialState = createExecutionState(`What does ${FIXTURE_FILE_NAME} in this project say?`, {
+    modelTier: mode === 'deep' ? 'deep' : 'fast',
+    allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY],
+  });
   const loop = new BoundedAgentLoop(
     new ModelDeckOwnedGateway(settings),
     new ToolRegistry([listWorkspaceEntriesTool, readWorkspaceTextFileTool]),
@@ -85,16 +90,18 @@ async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promi
       approval: { decide: () => 'approved' },
     },
   );
-  const outcome = await loop.run({
-    initialState: createExecutionState(`What does ${FIXTURE_FILE_NAME} in this project say?`, {
-      modelTier: mode === 'deep' ? 'deep' : 'fast',
-      allowedCapabilities: [WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY],
-    }),
-    context: [],
-    requestedDecision: WORKSPACE_TASK_REQUESTED_DECISION,
-    constraints: WORKSPACE_TASK_CONSTRAINTS,
-    toolRequestMode: 'required',
-  }, new AbortController().signal);
+  let outcome: LoopOutcome;
+  try {
+    outcome = await loop.run({
+      initialState,
+      context: [],
+      requestedDecision: WORKSPACE_TASK_REQUESTED_DECISION,
+      constraints: WORKSPACE_TASK_CONSTRAINTS,
+      toolRequestMode: 'required',
+    }, new AbortController().signal);
+  } catch (error: unknown) {
+    return failedTrialReport(mode, initialState, diagnostics, executor, error);
+  }
 
   const expectedToolIds = [LIST_WORKSPACE_ENTRIES_TOOL_ID, READ_WORKSPACE_TEXT_FILE_TOOL_ID];
   const followedBoundedReadPath = JSON.stringify(executor.toolIds) === JSON.stringify(expectedToolIds);
@@ -113,6 +120,28 @@ async function runTrial(mode: ExecutionMode, settings: ModelDeckSettings): Promi
     validationCodes: diagnostics.entries.flatMap((entry) => entry.validationCode ? [entry.validationCode] : []),
     escalated: diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'),
     evidenceCoverage,
+  };
+}
+
+function failedTrialReport(
+  mode: ExecutionMode,
+  initialState: ReturnType<typeof createExecutionState>,
+  diagnostics: InMemoryDiagnostics,
+  executor: ReadbackFixtureExecutor,
+  error: unknown,
+): TrialReport {
+  const expectedToolIds = [LIST_WORKSPACE_ENTRIES_TOOL_ID, READ_WORKSPACE_TEXT_FILE_TOOL_ID];
+  return {
+    mode,
+    finalTier: initialState.modelTier,
+    outcome: 'backend-error',
+    backendErrorCode: error instanceof ModelDeckError && error.status ? `http-${error.status}` : 'backend-error',
+    iterations: Math.max(0, ...diagnostics.entries.map((entry) => entry.iteration)),
+    latencyMs: diagnostics.entries.reduce((total, entry) => total + entry.latencyMs, 0),
+    toolIds: executor.toolIds,
+    followedBoundedReadPath: JSON.stringify(executor.toolIds) === JSON.stringify(expectedToolIds),
+    validationCodes: diagnostics.entries.flatMap((entry) => entry.validationCode ? [entry.validationCode] : []),
+    escalated: diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'),
   };
 }
 

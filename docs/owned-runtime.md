@@ -76,9 +76,9 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 
 ## Gate 1d observed result — 15 August 2026
 
-The first live readback evaluation against the configured local Fast and Deep routes did not pass. Both explicit Fast and explicit Deep completed a first inference without a structured tool call, even when the fixture supplied tools and requested the standard OpenAI-compatible `tool_choice: "required"` setting. Auto also completed on Fast at the first inference, so no deterministic evidence validation or Fast-to-Deep escalation occurred.
+The first live readback evaluation against the configured local Fast and Deep routes did not pass. Before capability rehearsal, both explicit Fast and explicit Deep completed a first inference without a structured tool call, even when the fixture supplied tools and requested the standard OpenAI-compatible `tool_choice: "required"` setting. Auto also completed on Fast at the first inference, so no deterministic evidence validation or Fast-to-Deep escalation occurred.
 
-This result establishes a current tool-call capability or model-template limitation at the local ModelDeck boundary. It does not establish a routing-policy failure, because the bounded list → read path never began. Preserve the metadata-only evaluation report and use ModelDeck capability rehearsal or a compatible tool-call template before extending WayFinder's autonomy boundary.
+After ModelDeck capability rehearsal, the same fixture produced explicit HTTP 422 backend errors for Fast, Deep, and Auto. ModelDeck correctly enforced the required-tool contract rather than silently accepting a text response, but the local Qwen Workers still did not emit native structured tool calls. This establishes a current Worker tool-call capability or chat-template limitation, not a WayFinder routing-policy failure, because the bounded list → read path never began. Preserve the metadata-only evaluation report and use a compatible tool-call template or Worker before extending WayFinder's autonomy boundary.
 5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 
 ## Open questions and risks
