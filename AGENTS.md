@@ -50,3 +50,8 @@ Maintain the distinction between observed data, deterministic derivations, model
 - Follow existing error and cancellation handling; do not silently swallow backend failures.
 - Use Australian English in documentation and user-facing copy, except for established APIs and identifiers.
 - Do not create commits, branches, pull requests, or publish VSIX packages unless explicitly asked.
+
+## Response quality
+
+- Always use pwsh examples
+- Always create pwsh terminal scripts
