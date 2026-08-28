@@ -322,6 +322,56 @@ test('a cancelled token produces a terminal cancellation state without inference
   assert.equal(gateway.capsules.length, 0);
 });
 
+test('a backend failure is recorded without retaining backend details', async () => {
+  const gateway: ModelGateway = {
+    async complete() {
+      throw new Error('ModelDeck responded with an implementation-specific failure.');
+    },
+  };
+  const diagnostics = new InMemoryDiagnostics();
+  const { controller } = loop(gateway, new ToolRegistry(), diagnostics);
+
+  await assert.rejects(
+    controller.run({ initialState: state(), context: [], requestedDecision: 'Respond.' }, new AbortController().signal),
+    /implementation-specific failure/,
+  );
+  assert.deepEqual(diagnostics.entries.map((entry) => ({ outcome: entry.outcome, phase: entry.phase, failureCode: entry.failureCode })), [{
+    outcome: 'failed', phase: 'failed', failureCode: 'backend-error',
+  }]);
+  assert.equal(JSON.stringify(diagnostics.entries).includes('implementation-specific failure'), false);
+});
+
+test('a tool-execution failure is recorded without retaining tool details', async () => {
+  const gateway = new SequenceGateway([{ kind: 'tool-request', request: { toolId: 'workspace.readFile', arguments: { path: 'parser.test.ts' } } }]);
+  const diagnostics = new InMemoryDiagnostics();
+  const failingExecutor: ToolExecutor = {
+    async execute() {
+      throw new Error('Filesystem failure at parser.test.ts.');
+    },
+  };
+  const controller = new BoundedAgentLoop(
+    gateway,
+    readRegistry(),
+    failingExecutor,
+    diagnostics,
+    {
+      maxIterations: 4,
+      executionMode: 'auto',
+      escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 5 },
+      approval: { decide: () => 'approved' },
+    },
+  );
+
+  await assert.rejects(
+    controller.run({ initialState: state(['workspace.read']), context: [], requestedDecision: 'Inspect.' }, new AbortController().signal),
+    /Filesystem failure/,
+  );
+  assert.deepEqual(diagnostics.entries.map((entry) => ({ outcome: entry.outcome, phase: entry.phase, failureCode: entry.failureCode })), [{
+    outcome: 'failed', phase: 'failed', failureCode: 'tool-execution-error',
+  }]);
+  assert.equal(JSON.stringify(diagnostics.entries).includes('parser.test.ts'), false);
+});
+
 test('validation repairs escalate Fast to Deep under the explicit policy', async () => {
   const gateway = new SequenceGateway([
     { kind: 'unsupported', reason: 'Malformed response one.' },

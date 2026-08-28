@@ -53,7 +53,7 @@ The public WayFinder sidebar grants two bounded read-only capabilities. `list_wo
 
 ## Measurement and comparison
 
-Each diagnostic records the developer-selected execution mode, model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, escalation, iteration, and stop reason. It deliberately excludes sensitive contents.
+Each diagnostic records the developer-selected execution mode, model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, coarse backend or tool-execution failure category, escalation, iteration, and stop reason. It deliberately excludes sensitive contents, including backend messages, paths, arguments, and raw tool results.
 
 When a local ModelDeck endpoint exposes `/v1/models`, WayFinder also records a discovery-time snapshot. The explicit `modeldeck.route` identifies the stable public route. `modeldeck.primary_worker` is the configured Worker identity used for experimental identity: its worker ID, loaded model ID/revision, and `configuration_fingerprint`. `configuration_fingerprint` is configured identity; the optional `runtime_configuration_fingerprint` is separate ready-Worker evidence and must not replace it.
 

@@ -26,6 +26,7 @@
     "latencyMs": { "type": "integer", "minimum": 0 },
     "outcome": { "enum": ["final", "tool-request", "validation-rejected", "approval-required", "cancelled", "stopped", "failed"] },
     "validationCode": { "enum": ["unknown-tool", "malformed-arguments", "unsupported-response", "insufficient-evidence-coverage"] },
+    "failureCode": { "enum": ["backend-error", "tool-execution-error"] },
     "escalation": { "enum": ["fast-to-deep"] },
     "stopReason": { "enum": ["iteration-limit", "cancelled", "validation-limit", "tool-rejected"] },
     "modelDeckDiscovery": { "$ref": "#/$defs/modelDeckDiscovery" }

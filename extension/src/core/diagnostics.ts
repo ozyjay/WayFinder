@@ -23,6 +23,8 @@ export interface InferenceDiagnostic {
   readonly latencyMs: number;
   readonly outcome: 'final' | 'tool-request' | 'validation-rejected' | 'approval-required' | 'cancelled' | 'stopped' | 'failed';
   readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response' | 'insufficient-evidence-coverage';
+  /** Coarse operational category; deliberately excludes backend and filesystem details. */
+  readonly failureCode?: 'backend-error' | 'tool-execution-error';
   readonly escalation?: 'fast-to-deep';
   readonly stopReason?: 'iteration-limit' | 'cancelled' | 'validation-limit' | 'tool-rejected';
   /** ModelDeck readiness snapshot; it does not identify the request-serving Worker. */

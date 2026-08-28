@@ -81,6 +81,7 @@ export class BoundedAgentLoop {
         response = await this.gateway.complete(capsule, signal);
       } catch (error: unknown) {
         if (signal.aborted) return this.cancel(state, iteration);
+        await this.recordFailure(capsule, state, Math.round(performance.now() - startedAt), 'backend-error');
         throw error;
       }
       const latencyMs = Math.round(performance.now() - startedAt);
@@ -159,7 +160,14 @@ export class BoundedAgentLoop {
         }
 
         const acting = transitionExecutionState(state, 'acting', 'active', { nextAction: validation.tool.id });
-        const toolResult = await this.executor.execute({ tool: validation.tool, arguments: validation.arguments }, signal);
+        let toolResult: ToolExecutionResult;
+        try {
+          toolResult = await this.executor.execute({ tool: validation.tool, arguments: validation.arguments }, signal);
+        } catch (error: unknown) {
+          if (signal.aborted) return this.cancel(acting, iteration);
+          await this.recordFailure(capsule, acting, Math.round(performance.now() - startedAt), 'tool-execution-error');
+          throw error;
+        }
         if (signal.aborted) return this.cancel(acting, iteration);
         state = this.observe(acting, validation.tool.id, toolResult, iteration);
         if (toolResult.transientModelContext) {
@@ -273,6 +281,16 @@ export class BoundedAgentLoop {
     return { kind: 'cancelled', state: cancelled };
   }
 
+  private async recordFailure(
+    capsule: RequestCapsule,
+    state: ExecutionState,
+    latencyMs: number,
+    failureCode: InferenceDiagnostic['failureCode'],
+  ): Promise<void> {
+    const failed = transitionExecutionState(state, 'failed', 'failed');
+    await this.record(capsule, failed, latencyMs, 'failed', undefined, undefined, undefined, failureCode);
+  }
+
   private async record(
     capsule: RequestCapsule,
     state: ExecutionState,
@@ -281,6 +299,7 @@ export class BoundedAgentLoop {
     validationCode?: InferenceDiagnostic['validationCode'],
     escalation?: InferenceDiagnostic['escalation'],
     stopReason?: InferenceDiagnostic['stopReason'],
+    failureCode?: InferenceDiagnostic['failureCode'],
   ): Promise<void> {
     const counts = emptyContextCharacterCounts();
     for (const item of capsule.context) counts[item.type] += item.content.length;
@@ -302,6 +321,7 @@ export class BoundedAgentLoop {
       latencyMs,
       outcome,
       ...(validationCode ? { validationCode } : {}),
+      ...(failureCode ? { failureCode } : {}),
       ...(escalation ? { escalation } : {}),
       ...(stopReason ? { stopReason } : {}),
       ...(modelDeckDiscovery ? { modelDeckDiscovery } : {}),
