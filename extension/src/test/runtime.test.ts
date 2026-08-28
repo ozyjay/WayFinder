@@ -4,7 +4,7 @@ import { InMemoryDiagnostics } from '../core/diagnostics';
 import { createExecutionState, transitionExecutionState } from '../core/executionState';
 import { ContextItem, compileRequestCapsule, selectContextWithinBudget } from '../core/requestCapsule';
 import { BoundedAgentLoop, ModelGateway, ModelResponse } from '../core/runtime';
-import { ToolExecutor, ToolRegistry } from '../core/toolBroker';
+import { ToolExecutionError, ToolExecutor, ToolRegistry } from '../core/toolBroker';
 import { selectBackend } from '../core/router';
 import {
   MAX_WORKSPACE_ENTRIES,
@@ -350,9 +350,14 @@ test('a tool-execution failure is recorded without retaining tool details', asyn
   const diagnostics = new InMemoryDiagnostics();
   const failingExecutor: ToolExecutor = {
     async execute() {
-      throw new Error('Filesystem failure at parser.test.ts.');
+      throw new ToolExecutionError(
+        'file-not-found',
+        'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+        new Error('Filesystem failure at parser.test.ts.'),
+      );
     },
   };
+  const trace: unknown[] = [];
   const controller = new BoundedAgentLoop(
     gateway,
     readRegistry(),
@@ -367,13 +372,31 @@ test('a tool-execution failure is recorded without retaining tool details', asyn
   );
 
   await assert.rejects(
-    controller.run({ initialState: state(['workspace.read']), context: [], requestedDecision: 'Inspect.' }, new AbortController().signal),
-    /Filesystem failure/,
+    controller.run({
+      initialState: state(['workspace.read']),
+      context: [],
+      requestedDecision: 'Inspect.',
+      onTrace: (event) => trace.push(event),
+    }, new AbortController().signal),
+    /requested workspace file was not found/,
   );
   assert.deepEqual(diagnostics.entries.map((entry) => ({ outcome: entry.outcome, phase: entry.phase, failureCode: entry.failureCode })), [{
     outcome: 'failed', phase: 'failed', failureCode: 'tool-execution-error',
   }]);
   assert.equal(JSON.stringify(diagnostics.entries).includes('parser.test.ts'), false);
+  assert.deepEqual(trace, [
+    { kind: 'inference-started', iteration: 1, modelTier: 'fast' },
+    { kind: 'tool-requested', iteration: 1, modelTier: 'fast', toolId: 'workspace.readFile' },
+    {
+      kind: 'tool-failed',
+      iteration: 1,
+      modelTier: 'fast',
+      toolId: 'workspace.readFile',
+      failureCode: 'file-not-found',
+      safeMessage: 'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+    },
+  ]);
+  assert.equal(JSON.stringify(trace).includes('parser.test.ts'), false);
 });
 
 test('validation repairs escalate Fast to Deep under the explicit policy', async () => {

@@ -1,6 +1,7 @@
 import { ExecutionMode, ExecutionState, createExecutionState } from '../core/executionState';
-import { LoopInput, LoopOutcome } from '../core/runtime';
-import { READ_WORKSPACE_TEXT_FILE_TOOL_ID, WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY } from '../core/workspaceTools';
+import { LoopInput, LoopOutcome, LoopTraceEvent } from '../core/runtime';
+import { ToolExecutionError } from '../core/toolBroker';
+import { LIST_WORKSPACE_ENTRIES_TOOL_ID, READ_WORKSPACE_TEXT_FILE_TOOL_ID, WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY } from '../core/workspaceTools';
 import { ModelDeckError } from '../modeldeck/client';
 
 export interface OwnedTaskRequest {
@@ -15,6 +16,13 @@ export interface OwnedTaskUpdate {
   readonly modelTier?: ExecutionState['modelTier'];
   readonly message: string;
   readonly response?: string;
+  readonly traceEvent?: OwnedTaskTraceEvent;
+}
+
+export interface OwnedTaskTraceEvent {
+  readonly iteration: number;
+  readonly kind: 'working' | 'success' | 'warning' | 'error';
+  readonly message: string;
 }
 
 export interface RuntimeRunner {
@@ -63,10 +71,16 @@ export class OwnedTaskService {
         context: [],
         requestedDecision: WORKSPACE_TASK_REQUESTED_DECISION,
         constraints: WORKSPACE_TASK_CONSTRAINTS,
+        onTrace: (event) => report({
+          state: 'running',
+          modelTier: event.modelTier,
+          message: `Running locally with ${labelTier(event.modelTier)}.`,
+          traceEvent: taskTraceEvent(event),
+        }),
       }, controller.signal);
       report(outcomeUpdate(outcome));
     } catch (error: unknown) {
-      report({ state: 'error', message: taskErrorMessage(error) });
+      report({ state: 'error', message: taskErrorMessage(error, request.mode) });
     } finally {
       if (this.active?.taskId === request.taskId) this.active = undefined;
     }
@@ -105,7 +119,11 @@ function labelTier(tier: ExecutionState['modelTier']): string {
   return tier === 'fast' ? 'Fast' : 'Deep';
 }
 
-function taskErrorMessage(error: unknown): string {
+function taskErrorMessage(error: unknown, mode: ExecutionMode): string {
+  if (error instanceof ToolExecutionError) {
+    const policy = mode === 'auto' ? ' Auto currently escalates validation failures, not tool-execution failures.' : '';
+    return `WayFinder could not complete this task. ${error.safeMessage}${policy}`;
+  }
   if (error instanceof ModelDeckError && error.status) {
     if (error.status === 400 || error.status === 422) {
       return `The selected ModelDeck route rejected WayFinder's general chat request (HTTP ${error.status}). Check that the route supports chat, tools, and the configured output budget.`;
@@ -116,4 +134,40 @@ function taskErrorMessage(error: unknown): string {
     return 'WayFinder could not reach the local ModelDeck endpoint. Check that ModelDeck is running and the configured URL is correct.';
   }
   return 'WayFinder could not complete this task. Check the local runtime configuration and try again.';
+}
+
+function taskTraceEvent(event: LoopTraceEvent): OwnedTaskTraceEvent {
+  const tier = labelTier(event.modelTier);
+  if (event.kind === 'inference-started') {
+    return { iteration: event.iteration, kind: 'working', message: `${tier} inference started.` };
+  }
+  if (event.kind === 'final-response') {
+    return { iteration: event.iteration, kind: 'success', message: `${tier} returned a final response.` };
+  }
+  if (event.kind === 'backend-failed') {
+    return { iteration: event.iteration, kind: 'error', message: `${tier} failed in the local model backend.` };
+  }
+  if (event.kind === 'tool-requested') {
+    return { iteration: event.iteration, kind: 'working', message: `${tier} requested ${toolLabel(event.toolId)}.` };
+  }
+  if (event.kind === 'tool-completed') {
+    return { iteration: event.iteration, kind: 'success', message: `${toolLabel(event.toolId)} completed.` };
+  }
+  if (event.kind === 'tool-failed') {
+    return { iteration: event.iteration, kind: 'error', message: `${toolLabel(event.toolId)} failed: ${event.safeMessage}` };
+  }
+  if (event.kind === 'escalated') {
+    return { iteration: event.iteration, kind: 'warning', message: 'Auto escalated from Fast to Deep after deterministic validation repairs.' };
+  }
+  return {
+    iteration: event.iteration,
+    kind: 'warning',
+    message: `Response validation rejected the result (${'validationCode' in event ? event.validationCode : 'unknown'}).`,
+  };
+}
+
+function toolLabel(toolId: string): string {
+  if (toolId === LIST_WORKSPACE_ENTRIES_TOOL_ID) return `workspace listing (${toolId})`;
+  if (toolId === READ_WORKSPACE_TEXT_FILE_TOOL_ID) return `workspace file read (${toolId})`;
+  return `tool ${toolId}`;
 }

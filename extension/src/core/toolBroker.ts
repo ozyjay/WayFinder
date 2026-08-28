@@ -50,6 +50,26 @@ export interface ToolExecutionResult {
   readonly transientModelContext?: Omit<ContextItem, 'id'>;
 }
 
+export type ToolExecutionFailureCode =
+  | 'file-not-found'
+  | 'invalid-target'
+  | 'file-too-large'
+  | 'not-text'
+  | 'workspace-unavailable'
+  | 'filesystem-error';
+
+/** A tool-boundary failure with a coarse message that is safe to show in the UI. */
+export class ToolExecutionError extends Error {
+  public constructor(
+    public readonly code: ToolExecutionFailureCode,
+    public readonly safeMessage: string,
+    cause?: unknown,
+  ) {
+    super(safeMessage, cause === undefined ? undefined : { cause });
+    this.name = 'ToolExecutionError';
+  }
+}
+
 export interface ToolExecutor {
   execute(request: { readonly tool: ToolDefinition; readonly arguments: JsonObject }, signal: AbortSignal): Promise<ToolExecutionResult>;
 }

@@ -8,7 +8,7 @@ import {
   isDirectWorkspaceFileName,
   summariseWorkspaceEntries,
 } from '../core/workspaceTools';
-import { ToolExecutor } from '../core/toolBroker';
+import { ToolExecutionError, ToolExecutor } from '../core/toolBroker';
 
 /** VS Code boundary for deliberately narrow workspace-observation capabilities. */
 export class WorkspaceToolExecutor implements ToolExecutor {
@@ -41,8 +41,7 @@ export class WorkspaceToolExecutor implements ToolExecutor {
           entries: entries.map(([name, type]) => ({ name, kind: entryKind(type) })),
         });
       } catch (error: unknown) {
-        const detail = error instanceof Error ? error.message : 'Unknown filesystem error.';
-        throw new Error(`Could not list the workspace root '${folder.name}': ${detail}`);
+        throw new ToolExecutionError('filesystem-error', 'The workspace root could not be listed.', error);
       }
       throwIfAborted(signal);
     }
@@ -57,29 +56,42 @@ export class WorkspaceToolExecutor implements ToolExecutor {
     throwIfAborted(signal);
     const path = arguments_.path;
     if (typeof path !== 'string' || !isDirectWorkspaceFileName(path)) {
-      throw new Error('WayFinder can read only a direct workspace file name returned by the listing.');
+      throw new ToolExecutionError('invalid-target', 'The requested path was not a direct workspace filename.');
     }
 
     const folders = vscode.workspace.workspaceFolders;
-    if (!folders?.length) throw new Error('No workspace folder is open.');
-    if (folders.length !== 1) throw new Error('WayFinder can read a file only when one workspace root is open.');
+    if (!folders?.length) throw new ToolExecutionError('workspace-unavailable', 'No workspace folder is open.');
+    if (folders.length !== 1) throw new ToolExecutionError('workspace-unavailable', 'File reading requires exactly one open workspace root.');
 
     const uri = vscode.Uri.joinPath(folders[0].uri, path);
-    const stat = await vscode.workspace.fs.stat(uri);
+    let stat: vscode.FileStat;
+    try {
+      stat = await vscode.workspace.fs.stat(uri);
+    } catch (error: unknown) {
+      if (filesystemErrorCode(error) === 'FileNotFound') {
+        throw new ToolExecutionError('file-not-found', 'The requested workspace file was not found. Use the exact filename from the workspace listing.', error);
+      }
+      throw new ToolExecutionError('filesystem-error', 'The requested workspace file could not be inspected.', error);
+    }
     throwIfAborted(signal);
     if (!(stat.type & vscode.FileType.File) || (stat.type & vscode.FileType.SymbolicLink)) {
-      throw new Error(`WayFinder can read only regular text files; '${path}' is not eligible.`);
+      throw new ToolExecutionError('invalid-target', 'The requested workspace entry is not an eligible regular file.');
     }
     if (stat.size > MAX_WORKSPACE_TEXT_FILE_BYTES) {
-      throw new Error(`WayFinder can read files up to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes.`);
+      throw new ToolExecutionError('file-too-large', `WayFinder can read files up to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes.`);
     }
 
-    const bytes = await vscode.workspace.fs.readFile(uri);
+    let bytes: Uint8Array;
+    try {
+      bytes = await vscode.workspace.fs.readFile(uri);
+    } catch (error: unknown) {
+      throw new ToolExecutionError('filesystem-error', 'The requested workspace file could not be read.', error);
+    }
     throwIfAborted(signal);
     if (bytes.byteLength > MAX_WORKSPACE_TEXT_FILE_BYTES) {
-      throw new Error(`WayFinder can read files up to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes.`);
+      throw new ToolExecutionError('file-too-large', `WayFinder can read files up to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes.`);
     }
-    const content = decodeUtf8Text(bytes, path);
+    const content = decodeUtf8Text(bytes);
     const modelContent = `Contents of requested workspace file '${path}':\n${content}`;
     return {
       evidenceSummary: 'Read one bounded workspace text file; its contents are available as transient evidence for the next inference.',
@@ -107,11 +119,17 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new DOMException('Workspace listing cancelled.', 'AbortError');
 }
 
-function decodeUtf8Text(bytes: Uint8Array, path: string): string {
-  if (bytes.includes(0)) throw new Error(`WayFinder can read only UTF-8 text files; '${path}' appears to be binary.`);
+function decodeUtf8Text(bytes: Uint8Array): string {
+  if (bytes.includes(0)) throw new ToolExecutionError('not-text', 'The requested file appears to be binary rather than UTF-8 text.');
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
-    throw new Error(`WayFinder can read only UTF-8 text files; '${path}' is not valid UTF-8.`);
+    throw new ToolExecutionError('not-text', 'The requested file is not valid UTF-8 text.');
   }
+}
+
+function filesystemErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
+  const code = (error as { readonly code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
 }

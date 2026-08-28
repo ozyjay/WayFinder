@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { ExecutionMode } from '../core/executionState';
-import { OwnedTaskService, OwnedTaskUpdate } from '../owned/taskService';
+import { OwnedTaskService, OwnedTaskTraceEvent, OwnedTaskUpdate } from '../owned/taskService';
 import { parseViewMessage } from './messages';
 
 const VIEW_ID = 'wayfinder.taskView';
@@ -14,6 +14,7 @@ interface ConversationTurn {
   readonly message: string;
   readonly response?: string;
   readonly modelTier?: 'fast' | 'deep';
+  readonly trace: readonly OwnedTaskTraceEvent[];
 }
 
 interface ViewState {
@@ -71,6 +72,7 @@ export class WayFinderViewProvider implements vscode.WebviewViewProvider, vscode
       mode: message.mode,
       state: 'preparing',
       message: 'Preparing a compact task context.',
+      trace: [],
     };
     this.state = { mode: message.mode, turns: [...this.state.turns, turn] };
     this.postState();
@@ -87,6 +89,7 @@ export class WayFinderViewProvider implements vscode.WebviewViewProvider, vscode
         message: update.message,
         ...(update.response !== undefined ? { response: update.response } : {}),
         ...(update.modelTier ? { modelTier: update.modelTier } : {}),
+        trace: update.traceEvent ? [...turn.trace, update.traceEvent] : turn.trace,
       } : turn),
     };
     this.postState();
@@ -144,6 +147,13 @@ button:disabled, textarea:disabled, select:disabled { cursor: default; opacity: 
 .assistant[data-state="completed"] .status-mark { background: var(--vscode-testing-iconPassed); }
 .assistant[data-state="error"] .status-mark, .assistant[data-state="failed"] .status-mark { background: var(--vscode-testing-iconFailed); }
 .answer + .status-line { border-top: 1px solid var(--vscode-widget-border); margin-top: 9px; padding-top: 7px; }
+.debug-trace { border-top: 1px solid var(--vscode-widget-border); color: var(--vscode-descriptionForeground); font-size: .84em; margin-top: 9px; padding-top: 7px; }
+.debug-trace summary { cursor: pointer; user-select: none; }
+.debug-trace ol { display: flex; flex-direction: column; gap: 4px; margin: 7px 0 1px; padding-left: 24px; }
+.debug-trace li { padding-left: 2px; }
+.debug-trace li[data-kind="success"] { color: var(--vscode-testing-iconPassed); }
+.debug-trace li[data-kind="warning"] { color: var(--vscode-editorWarning-foreground); }
+.debug-trace li[data-kind="error"] { color: var(--vscode-testing-iconFailed); }
 .composer-wrap { background: var(--vscode-sideBar-background); border-top: 1px solid var(--vscode-widget-border); padding: 9px 10px 10px; }
 .composer { background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); border-radius: 8px; overflow: hidden; }
 textarea { background: transparent; border: 0; color: var(--vscode-input-foreground); display: block; max-height: 140px; min-height: 48px; padding: 9px 10px 5px; resize: none; width: 100%; }
@@ -180,8 +190,9 @@ const terminalStates = new Set(['completed', 'awaiting-approval', 'cancelled', '
 function element(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function addSuggestions(container) { const suggestions = element('div', 'suggestions'); [['What does Readme.md in this project say?', 'Read Readme.md'], ['List the top-level files in this workspace.', 'List top-level files']].forEach(([task, label]) => { const button = element('button', 'suggestion', label); button.addEventListener('click', () => { goal.value = task; updateControls(); goal.focus(); }); suggestions.appendChild(button); }); container.appendChild(suggestions); }
 function renderEmpty() { const empty = element('section', 'empty'); empty.appendChild(element('div', 'empty-mark', 'W')); empty.appendChild(element('h2', '', 'Ask WayFinder')); empty.appendChild(element('p', '', 'Explore the open workspace with bounded, read-only local tools.')); addSuggestions(empty); transcript.appendChild(empty); }
-function renderTurn(turn) { const section = element('section', 'turn'); const user = element('div', 'message user'); user.appendChild(element('p', 'message-label', 'You')); user.appendChild(element('div', 'bubble', turn.goal)); section.appendChild(user); const assistant = element('div', 'message assistant'); assistant.dataset.state = turn.state; assistant.appendChild(element('p', 'message-label', 'WayFinder')); const bubble = element('div', 'bubble'); if (turn.response) bubble.appendChild(element('div', 'answer', turn.response)); const statusLine = element('div', 'status-line'); statusLine.appendChild(element('span', 'status-mark')); statusLine.appendChild(element('span', '', turn.message)); bubble.appendChild(statusLine); assistant.appendChild(bubble); section.appendChild(assistant); transcript.appendChild(section); }
-function render(state) { transcript.replaceChildren(); if (!state.turns.length) renderEmpty(); else state.turns.forEach(renderTurn); const active = [...state.turns].reverse().find((turn) => !terminalStates.has(turn.state)); currentTaskId = active?.taskId; const running = Boolean(active); goal.disabled = running; mode.disabled = running; cancel.hidden = !running; send.hidden = running; mode.value = state.mode; updateControls(); requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; }); }
+function renderTrace(turn, bubble, wasOpen) { if (!turn.trace?.length) return; const details = element('details', 'debug-trace'); details.dataset.taskId = turn.taskId; details.open = wasOpen || turn.state === 'failed' || turn.state === 'error'; details.appendChild(element('summary', '', 'Debug trace (' + turn.trace.length + ')')); const events = element('ol'); turn.trace.forEach((event) => { const item = element('li', '', 'Iteration ' + event.iteration + ': ' + event.message); item.dataset.kind = event.kind; events.appendChild(item); }); details.appendChild(events); bubble.appendChild(details); }
+function renderTurn(turn, openTraces) { const section = element('section', 'turn'); const user = element('div', 'message user'); user.appendChild(element('p', 'message-label', 'You')); user.appendChild(element('div', 'bubble', turn.goal)); section.appendChild(user); const assistant = element('div', 'message assistant'); assistant.dataset.state = turn.state; assistant.appendChild(element('p', 'message-label', 'WayFinder')); const bubble = element('div', 'bubble'); if (turn.response) bubble.appendChild(element('div', 'answer', turn.response)); const statusLine = element('div', 'status-line'); statusLine.appendChild(element('span', 'status-mark')); statusLine.appendChild(element('span', '', turn.message)); bubble.appendChild(statusLine); renderTrace(turn, bubble, openTraces.has(turn.taskId)); assistant.appendChild(bubble); section.appendChild(assistant); transcript.appendChild(section); }
+function render(state) { const openTraces = new Set([...transcript.querySelectorAll('.debug-trace[open]')].map((details) => details.dataset.taskId)); transcript.replaceChildren(); if (!state.turns.length) renderEmpty(); else state.turns.forEach((turn) => renderTurn(turn, openTraces)); const active = [...state.turns].reverse().find((turn) => !terminalStates.has(turn.state)); currentTaskId = active?.taskId; const running = Boolean(active); goal.disabled = running; mode.disabled = running; cancel.hidden = !running; send.hidden = running; mode.value = state.mode; updateControls(); requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; }); }
 function updateControls() { send.disabled = !goal.value.trim(); goal.style.height = 'auto'; goal.style.height = Math.min(goal.scrollHeight, 140) + 'px'; }
 function submit() { const text = goal.value.trim(); if (!text || send.disabled) return; vscode.postMessage({ type: 'submit', goal: text, mode: mode.value }); goal.value = ''; updateControls(); }
 goal.addEventListener('input', updateControls);

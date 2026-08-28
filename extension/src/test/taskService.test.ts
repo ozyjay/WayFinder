@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createExecutionState } from '../core/executionState';
 import { LoopInput, LoopOutcome } from '../core/runtime';
+import { ToolExecutionError } from '../core/toolBroker';
 import { ModelDeckError } from '../modeldeck/client';
 import { OwnedTaskService, RuntimeRunner } from '../owned/taskService';
 import { parseViewMessage } from '../view/messages';
@@ -67,6 +68,39 @@ test('owned task service reports an actionable ModelDeck contract error', async 
   assert.match(messages.at(-1) ?? '', /HTTP 422/);
   assert.match(messages.at(-1) ?? '', /supports chat, tools, and the configured output budget/);
   assert.equal(messages.some((message) => message.includes('Backend detail')), false);
+});
+
+test('owned task service exposes privacy-safe live trace events and an actionable tool failure', async () => {
+  const service = new OwnedTaskService(() => ({
+    async run(input) {
+      input.onTrace?.({ kind: 'inference-started', iteration: 1, modelTier: 'fast' });
+      input.onTrace?.({ kind: 'tool-requested', iteration: 1, modelTier: 'fast', toolId: 'read_workspace_text_file' });
+      input.onTrace?.({
+        kind: 'tool-failed',
+        iteration: 1,
+        modelTier: 'fast',
+        toolId: 'read_workspace_text_file',
+        failureCode: 'file-not-found',
+        safeMessage: 'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+      });
+      throw new ToolExecutionError(
+        'file-not-found',
+        'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+        new Error('Private path: /workspace/readme'),
+      );
+    },
+  }));
+  const updates: Parameters<Parameters<OwnedTaskService['run']>[1]>[0][] = [];
+
+  await service.run({ taskId: 'missing', goal: 'Read the readme', mode: 'auto' }, (update) => updates.push(update));
+
+  assert.deepEqual(updates.flatMap((update) => update.traceEvent?.message ?? []), [
+    'Fast inference started.',
+    'Fast requested workspace file read (read_workspace_text_file).',
+    'workspace file read (read_workspace_text_file) failed: The requested workspace file was not found. Use the exact filename from the workspace listing.',
+  ]);
+  assert.match(updates.at(-1)?.message ?? '', /Auto currently escalates validation failures, not tool-execution failures/);
+  assert.equal(JSON.stringify(updates).includes('/workspace/readme'), false);
 });
 
 test('webview messages accept only the explicit task protocol', () => {

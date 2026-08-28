@@ -2,7 +2,7 @@ import { DiagnosticsSink, InferenceDiagnostic } from './diagnostics';
 import { readFileEvidenceCoverage } from './evidenceCoverage';
 import { Evidence, ExecutionMode, ExecutionState, isTerminal, transitionExecutionState } from './executionState';
 import { CapsuleInput, ContextItem, RequestCapsule, compileRequestCapsule } from './requestCapsule';
-import { ToolExecutionResult, ToolExecutor, ToolRegistry, ToolRequest } from './toolBroker';
+import { ToolExecutionError, ToolExecutionFailureCode, ToolExecutionResult, ToolExecutor, ToolRegistry, ToolRequest } from './toolBroker';
 import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 
 export type ModelResponse =
@@ -32,6 +32,33 @@ export interface LoopOptions {
   readonly approval: ApprovalPolicy;
 }
 
+export type LoopTraceEvent = {
+  readonly kind: 'inference-started' | 'final-response' | 'backend-failed';
+  readonly iteration: number;
+  readonly modelTier: ExecutionState['modelTier'];
+} | {
+  readonly kind: 'tool-requested' | 'tool-completed';
+  readonly iteration: number;
+  readonly modelTier: ExecutionState['modelTier'];
+  readonly toolId: string;
+} | {
+  readonly kind: 'tool-failed';
+  readonly iteration: number;
+  readonly modelTier: ExecutionState['modelTier'];
+  readonly toolId: string;
+  readonly failureCode: ToolExecutionFailureCode | 'unexpected';
+  readonly safeMessage: string;
+} | {
+  readonly kind: 'validation-rejected';
+  readonly iteration: number;
+  readonly modelTier: ExecutionState['modelTier'];
+  readonly validationCode: InferenceDiagnostic['validationCode'];
+} | {
+  readonly kind: 'escalated';
+  readonly iteration: number;
+  readonly modelTier: ExecutionState['modelTier'];
+};
+
 export interface LoopInput {
   readonly initialState: ExecutionState;
   readonly context: readonly ContextItem[];
@@ -39,6 +66,8 @@ export interface LoopInput {
   readonly constraints?: readonly string[];
   /** Optional deterministic policy for the next model action. */
   readonly toolRequestMode?: 'auto' | 'required';
+  /** Ephemeral, privacy-safe progress for the active UI turn; never persisted. */
+  readonly onTrace?: (event: LoopTraceEvent) => void;
 }
 
 export type LoopOutcome =
@@ -75,12 +104,14 @@ export class BoundedAgentLoop {
       if (signal.aborted) return this.cancel(state, iteration);
       state = transitionExecutionState(state, 'planning', 'active', { iteration });
       const capsule = this.capsule(state, input, transientContext);
+      input.onTrace?.({ kind: 'inference-started', iteration, modelTier: state.modelTier });
       const startedAt = performance.now();
       let response: ModelResponse;
       try {
         response = await this.gateway.complete(capsule, signal);
       } catch (error: unknown) {
         if (signal.aborted) return this.cancel(state, iteration);
+        input.onTrace?.({ kind: 'backend-failed', iteration, modelTier: state.modelTier });
         await this.recordFailure(capsule, state, Math.round(performance.now() - startedAt), 'backend-error');
         throw error;
       }
@@ -88,6 +119,7 @@ export class BoundedAgentLoop {
       if (signal.aborted) return this.cancel(state, iteration);
 
       if (response.kind === 'final') {
+        input.onTrace?.({ kind: 'final-response', iteration, modelTier: state.modelTier });
         const finalValidation = this.options.executionMode === 'auto'
           ? validateEvidenceCoverage(capsule, response.text)
           : undefined;
@@ -99,10 +131,12 @@ export class BoundedAgentLoop {
             provenance: 'final-response-validation',
           });
           await this.record(capsule, next, latencyMs, 'validation-rejected', finalValidation.code);
+          input.onTrace?.({ kind: 'validation-rejected', iteration, modelTier: state.modelTier, validationCode: finalValidation.code });
           validationFailures += 1;
           const terminal = await this.maybeEscalate(next, capsule, latencyMs, validationFailures, repairsAtTier, finalValidation.code);
           if (terminal.kind === 'escalated') {
             state = terminal.state;
+            input.onTrace?.({ kind: 'escalated', iteration, modelTier: state.modelTier });
             repairsAtTier = 0;
             continue;
           }
@@ -120,6 +154,7 @@ export class BoundedAgentLoop {
       }
 
       if (response.kind === 'tool-request') {
+        input.onTrace?.({ kind: 'tool-requested', iteration, modelTier: state.modelTier, toolId: response.request.toolId });
         const validation = this.tools.validate(response.request, state);
         if (!validation.valid) {
           const next = this.addEvidence(state, {
@@ -129,10 +164,12 @@ export class BoundedAgentLoop {
             provenance: 'tool-request-validation',
           });
           await this.record(capsule, next, latencyMs, 'validation-rejected', validation.code);
+          input.onTrace?.({ kind: 'validation-rejected', iteration, modelTier: state.modelTier, validationCode: validation.code });
           validationFailures += 1;
           const terminal = await this.maybeEscalate(next, capsule, latencyMs, validationFailures, repairsAtTier, validation.code);
           if (terminal.kind === 'escalated') {
             state = terminal.state;
+            input.onTrace?.({ kind: 'escalated', iteration, modelTier: state.modelTier });
             repairsAtTier = 0;
             continue;
           }
@@ -165,11 +202,20 @@ export class BoundedAgentLoop {
           toolResult = await this.executor.execute({ tool: validation.tool, arguments: validation.arguments }, signal);
         } catch (error: unknown) {
           if (signal.aborted) return this.cancel(acting, iteration);
+          const failure = safeToolFailure(error);
+          input.onTrace?.({
+            kind: 'tool-failed',
+            iteration,
+            modelTier: state.modelTier,
+            toolId: validation.tool.id,
+            ...failure,
+          });
           await this.recordFailure(capsule, acting, Math.round(performance.now() - startedAt), 'tool-execution-error');
           throw error;
         }
         if (signal.aborted) return this.cancel(acting, iteration);
         state = this.observe(acting, validation.tool.id, toolResult, iteration);
+        input.onTrace?.({ kind: 'tool-completed', iteration, modelTier: state.modelTier, toolId: validation.tool.id });
         if (toolResult.transientModelContext) {
           transientContext = [...transientContext, {
             ...toolResult.transientModelContext,
@@ -187,10 +233,12 @@ export class BoundedAgentLoop {
         provenance: 'model-response-validation',
       });
       await this.record(capsule, next, latencyMs, 'validation-rejected', 'unsupported-response');
+      input.onTrace?.({ kind: 'validation-rejected', iteration, modelTier: state.modelTier, validationCode: 'unsupported-response' });
       validationFailures += 1;
       const terminal = await this.maybeEscalate(next, capsule, latencyMs, validationFailures, repairsAtTier, 'unsupported-response');
       if (terminal.kind === 'escalated') {
         state = terminal.state;
+        input.onTrace?.({ kind: 'escalated', iteration, modelTier: state.modelTier });
         repairsAtTier = 0;
         continue;
       }
@@ -327,6 +375,13 @@ export class BoundedAgentLoop {
       ...(modelDeckDiscovery ? { modelDeckDiscovery } : {}),
     });
   }
+}
+
+function safeToolFailure(error: unknown): { readonly failureCode: ToolExecutionFailureCode | 'unexpected'; readonly safeMessage: string } {
+  if (error instanceof ToolExecutionError) {
+    return { failureCode: error.code, safeMessage: error.safeMessage };
+  }
+  return { failureCode: 'unexpected', safeMessage: 'The tool failed unexpectedly.' };
 }
 
 export const denyConsequentialActions: ApprovalPolicy = {

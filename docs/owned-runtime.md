@@ -27,7 +27,7 @@ model + selected context + tools + policy + input/output budgets + autonomy boun
 | Tool broker | Capability selection, schema presentation, argument validation, approval boundary, and evidence reduction | Contracts and validation are implemented. The UI can list direct workspace entries, then read one bounded direct UTF-8 text file. |
 | Agent loop | Bounded inspect–reason–act–observe control, validation repairs, escalation, cancellation, and stop reasons | Implemented in `core/runtime.ts`. |
 | Diagnostics | Privacy-conscious inference metadata | JSONL diagnostics record no prompt, source content, tool arguments, raw output, terminal output, environment values, or credentials. |
-| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | The dedicated WayFinder Activity Bar sidebar uses a chat-style transcript and composer; rendered turns remain UI-only independent tasks. The Gate 0 provider remains separate in `compatibility/`. |
+| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | The dedicated WayFinder Activity Bar sidebar uses a chat-style transcript and composer; rendered turns remain UI-only independent tasks. Each turn includes a collapsible, ephemeral debug trace of iterations, tiers, tool IDs, validation outcomes and coarse failures. The Gate 0 provider remains separate in `compatibility/`. |
 
 ## Core contracts
 
@@ -54,6 +54,8 @@ The public WayFinder sidebar grants two bounded read-only capabilities. `list_wo
 ## Measurement and comparison
 
 Each diagnostic records the developer-selected execution mode, model tier, phase, context item types/provenance and character sizes, labelled budgets, exposed-tool count and schema size, stable-prefix identity, latency, validation result, coarse backend or tool-execution failure category, escalation, iteration, and stop reason. It deliberately excludes sensitive contents, including backend messages, paths, arguments, and raw tool results.
+
+The sidebar's live debug trace follows the same privacy boundary. It is ephemeral UI state rather than persisted telemetry, and shows only iteration numbers, model tiers, known tool IDs, validation codes, escalation decisions and sanitised operational errors. It does not show prompts, paths, tool arguments, file contents, backend details or raw tool results.
 
 When a local ModelDeck endpoint exposes `/v1/models`, WayFinder also records a discovery-time snapshot. The explicit `modeldeck.route` identifies the stable public route. `modeldeck.primary_worker` is the configured Worker identity used for experimental identity: its worker ID, loaded model ID/revision, and `configuration_fingerprint`. `configuration_fingerprint` is configured identity; the optional `runtime_configuration_fingerprint` is separate ready-Worker evidence and must not replace it.
 
