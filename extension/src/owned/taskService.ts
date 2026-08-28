@@ -1,6 +1,7 @@
 import { ExecutionMode, ExecutionState, createExecutionState } from '../core/executionState';
 import { LoopInput, LoopOutcome } from '../core/runtime';
 import { READ_WORKSPACE_TEXT_FILE_TOOL_ID, WORKSPACE_OBSERVE_CAPABILITY, WORKSPACE_READ_CAPABILITY } from '../core/workspaceTools';
+import { ModelDeckError } from '../modeldeck/client';
 
 export interface OwnedTaskRequest {
   readonly taskId: string;
@@ -64,8 +65,8 @@ export class OwnedTaskService {
         constraints: WORKSPACE_TASK_CONSTRAINTS,
       }, controller.signal);
       report(outcomeUpdate(outcome));
-    } catch {
-      report({ state: 'error', message: 'WayFinder could not complete this task. Check the local runtime configuration and try again.' });
+    } catch (error: unknown) {
+      report({ state: 'error', message: taskErrorMessage(error) });
     } finally {
       if (this.active?.taskId === request.taskId) this.active = undefined;
     }
@@ -102,4 +103,17 @@ function outcomeUpdate(outcome: LoopOutcome): Omit<OwnedTaskUpdate, 'taskId'> {
 
 function labelTier(tier: ExecutionState['modelTier']): string {
   return tier === 'fast' ? 'Fast' : 'Deep';
+}
+
+function taskErrorMessage(error: unknown): string {
+  if (error instanceof ModelDeckError && error.status) {
+    if (error.status === 400 || error.status === 422) {
+      return `The selected ModelDeck route rejected WayFinder's general chat request (HTTP ${error.status}). Check that the route supports chat, tools, and the configured output budget.`;
+    }
+    return `The local ModelDeck request failed (HTTP ${error.status}). Check the selected route and try again.`;
+  }
+  if (error instanceof TypeError) {
+    return 'WayFinder could not reach the local ModelDeck endpoint. Check that ModelDeck is running and the configured URL is correct.';
+  }
+  return 'WayFinder could not complete this task. Check the local runtime configuration and try again.';
 }

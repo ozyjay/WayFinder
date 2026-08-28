@@ -86,6 +86,8 @@ export class ModelDeckClient {
         messages: request.messages,
         tools: request.tools,
         tool_choice: request.tools?.length ? request.toolChoice : undefined,
+        // Current strict local general-chat workers require an explicit deterministic value.
+        temperature: 0,
         max_tokens: request.maxTokens,
         stream: false,
       }),

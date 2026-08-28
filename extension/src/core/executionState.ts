@@ -98,7 +98,7 @@ export function defaultBudget(): ContextBudget {
   return {
     // This is a conservative runtime budget, not a claim about a backend's context window.
     input: { limit: 4_096, countKind: 'estimate' },
-    output: { limit: 1_024, countKind: 'estimate' },
+    output: { limit: 512, countKind: 'estimate' },
   };
 }
 

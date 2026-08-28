@@ -1,6 +1,6 @@
 import { ModelGateway, ModelResponse } from '../core/runtime';
 import { RequestCapsule } from '../core/requestCapsule';
-import { ModelDeckClient, ModelDeckDiscoveryMetadata, ModelDeckSettings, OpenAiMessage } from './client';
+import { ModelDeckClient, ModelDeckDiscoveryMetadata, ModelDeckResponse, ModelDeckSettings, OpenAiMessage } from './client';
 
 /** Renders the model-neutral capsule only at the ModelDeck wire boundary. */
 export class ModelDeckOwnedGateway implements ModelGateway {
@@ -11,30 +11,29 @@ export class ModelDeckOwnedGateway implements ModelGateway {
   public async complete(capsule: RequestCapsule, signal: AbortSignal): Promise<ModelResponse> {
     this.latestDiscovery = undefined;
     const client = new ModelDeckClient(this.settings);
-    const response = await client.complete({
-      backend: capsule.modelTier,
-      messages: [
-        { role: 'system', content: ownedRuntimeInstructions() },
-        { role: 'user', content: renderCapsule(capsule) },
-      ],
-      tools: capsule.tools.map((tool) => ({
-        type: 'function' as const,
-        function: { name: tool.id, description: tool.description, parameters: tool.inputSchema },
-      })),
-      toolChoice: capsule.toolRequestMode,
-      maxTokens: capsule.budget.output.limit,
-    }, signal);
+    let response: ModelDeckResponse;
+    try {
+      response = await client.complete({
+        backend: capsule.modelTier,
+        messages: [
+          { role: 'system', content: ownedRuntimeInstructions() },
+          { role: 'user', content: renderCapsule(capsule) },
+        ],
+        tools: capsule.tools.map((tool) => ({
+          type: 'function' as const,
+          function: { name: tool.id, description: tool.description, parameters: tool.inputSchema },
+        })),
+        toolChoice: capsule.toolRequestMode,
+        maxTokens: capsule.budget.output.limit,
+      }, signal);
+    } catch (error: unknown) {
+      await this.captureDiscovery(client, capsule, signal);
+      throw error;
+    }
 
     // Discovery is diagnostic evidence only. A failed or cancelled discovery
     // must not alter the compatible completion path.
-    try {
-      this.latestDiscovery = await client.discover(
-        capsule.modelTier === 'fast' ? this.settings.fastModel : this.settings.deepModel,
-        signal,
-      );
-    } catch {
-      this.latestDiscovery = undefined;
-    }
+    await this.captureDiscovery(client, capsule, signal);
 
     if (response.toolCalls.length > 1) {
       return { kind: 'unsupported', reason: 'This bounded runtime slice accepts one tool request per inference.' };
@@ -52,6 +51,17 @@ export class ModelDeckOwnedGateway implements ModelGateway {
 
   public discoveryMetadata(): ModelDeckDiscoveryMetadata | undefined {
     return this.latestDiscovery;
+  }
+
+  private async captureDiscovery(client: ModelDeckClient, capsule: RequestCapsule, signal: AbortSignal): Promise<void> {
+    try {
+      this.latestDiscovery = await client.discover(
+        capsule.modelTier === 'fast' ? this.settings.fastModel : this.settings.deepModel,
+        signal,
+      );
+    } catch {
+      this.latestDiscovery = undefined;
+    }
   }
 }
 

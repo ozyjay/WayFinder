@@ -103,7 +103,7 @@
         },
         "wayfinder.runtime.outputBudget": {
           "type": "number",
-          "default": 1024,
+          "default": 512,
           "minimum": 1,
           "multipleOf": 1,
           "description": "Estimated output-token budget for the initial owned WayFinder runtime."

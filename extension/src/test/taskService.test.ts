@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createExecutionState } from '../core/executionState';
 import { LoopInput, LoopOutcome } from '../core/runtime';
+import { ModelDeckError } from '../modeldeck/client';
 import { OwnedTaskService, RuntimeRunner } from '../owned/taskService';
 import { parseViewMessage } from '../view/messages';
 
@@ -51,6 +52,21 @@ test('a superseded task cannot publish a stale completion', async () => {
   await first;
 
   assert.deepEqual(updates, ['first:preparing', 'first:running', 'second:preparing', 'second:running', 'second:completed']);
+});
+
+test('owned task service reports an actionable ModelDeck contract error', async () => {
+  const service = new OwnedTaskService(() => ({
+    async run() {
+      throw new ModelDeckError('Backend detail must not be shown.', 422);
+    },
+  }));
+  const messages: string[] = [];
+
+  await service.run({ taskId: 'rejected', goal: 'List files', mode: 'fast' }, (update) => messages.push(update.message));
+
+  assert.match(messages.at(-1) ?? '', /HTTP 422/);
+  assert.match(messages.at(-1) ?? '', /supports chat, tools, and the configured output budget/);
+  assert.equal(messages.some((message) => message.includes('Backend detail')), false);
 });
 
 test('webview messages accept only the explicit task protocol', () => {

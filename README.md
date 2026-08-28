@@ -48,7 +48,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 
 1. Run the extension in an Extension Development Host as above.
 2. Open **WayFinder** from its Activity Bar icon or run **WayFinder: Open**. This surface owns the compact request capsule and loop rather than forwarding Copilot's assembled agent transcript.
-3. Enter a task and leave the tier set to **Auto** (the default), or explicitly select **Fast** or **Deep** for that task. Auto starts Fast and may escalate to Deep after deterministic validation repairs; explicit tiers remain pinned.
+3. Send a message and leave the compact model selector set to **Auto** (the default), or explicitly select **Fast** or **Deep** for that request. Auto starts Fast and may escalate to Deep after deterministic validation repairs; explicit tiers remain pinned. The view retains rendered turns until **New chat**, but each request remains an independent runtime task and prior turns are not sent to the model.
 4. To exercise the bounded read-only path, configure a local ModelDeck backend, then ask: `What does Readme.md in this project say?` WayFinder first lists direct workspace entries, then may read the named file. Mock mode verifies the sidebar and trace path but does not request tools.
 5. Use the sidebar's **Show runtime diagnostics** action or **WayFinder: Show Runtime Diagnostics** to inspect metadata-only JSONL records. It records mode, tier, budgets, context categories and provenance, exposed-tool size, validation outcomes, escalation, latency, and stop reasons—never prompts, source contents, arguments, or raw tool outputs.
 
@@ -62,7 +62,7 @@ The mock response intentionally does not manufacture tool calls. It verifies pro
 | `wayfinder.modelDeck.deepModel` | `deep-local` | Configured deep backend model ID. |
 | `wayfinder.trace.enabled` | `true` | Enable local privacy-preserving Gate 0 traces. |
 | `wayfinder.runtime.inputBudget` | `4096` | Estimated input budget for the owned runtime; not an asserted model context limit. |
-| `wayfinder.runtime.outputBudget` | `1024` | Estimated output budget for the owned runtime. |
+| `wayfinder.runtime.outputBudget` | `512` | Estimated output budget for the owned runtime; chosen to fit the current bounded local-route defaults. |
 | `wayfinder.runtime.maxIterations` | `5` | Bounded-loop iteration limit for the owned runtime. |
 
 No token, API key, or model identity is hard-coded. The supplied URL and model IDs are placeholders and must be set to match the local ModelDeck installation.
@@ -73,10 +73,10 @@ The automated readback evaluation runs the same harmless, fixed `Readme.md` fixt
 
 It is deliberately separate from `npm test`, because it sends live requests to the local ModelDeck service. Provide the same local route details used by WayFinder:
 
-```bash
-WAYFINDER_EVAL_BASE_URL=http://127.0.0.1:8600/v1 \
-WAYFINDER_EVAL_FAST_MODEL=fast-local \
-WAYFINDER_EVAL_DEEP_MODEL=deep-local \
+```powershell
+$env:WAYFINDER_EVAL_BASE_URL = 'http://127.0.0.1:8600/v1'
+$env:WAYFINDER_EVAL_FAST_MODEL = 'fast-local'
+$env:WAYFINDER_EVAL_DEEP_MODEL = 'deep-local'
 npm run eval:readback
 ```
 

@@ -88,6 +88,10 @@ test('execution state starts serialisable and transitions to completed', async (
   assert.throws(() => transitionExecutionState(createExecutionState('task'), 'completed', 'completed'), /Invalid WayFinder state transition/);
 });
 
+test('the default output budget fits the current bounded local route contract', () => {
+  assert.equal(createExecutionState('Inspect the workspace').budget.output.limit, 512);
+});
+
 test('context-budget enforcement is deterministic and preserves exclusion provenance', () => {
   const items: ContextItem[] = [
     { id: 'low', type: 'code', content: 'low', provenance: 'workspace', tokens: 4, tokenCountKind: 'estimate', priority: 1 },

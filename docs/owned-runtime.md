@@ -20,14 +20,14 @@ model + selected context + tools + policy + input/output budgets + autonomy boun
 
 | Component | Owns | Current Gate 1 status |
 | --- | --- | --- |
-| Model gateway | ModelDeck wire request/response conversion and Fast/Deep selection | Non-streaming ModelDeck and deterministic mock adapters; `/v1/models` identity/readiness snapshots are recorded for diagnostics. Health, streaming, and authoritative token limits are pending. |
+| Model gateway | ModelDeck wire request/response conversion and Fast/Deep selection | Non-streaming ModelDeck and deterministic mock adapters; deterministic requests use `temperature: 0`, and `/v1/models` identity/readiness snapshots are recorded for diagnostics, including after rejected completions. Health, streaming, and authoritative token limits are pending. |
 | Execution state | Goal, phase, reduced evidence, completed actions, capabilities, tier, budgets, iterations, and terminal status | Implemented in `core/executionState.ts`; excludes chat transcript and raw tool output. |
 | Request capsule | Compact, model-neutral selected working set | Implemented in `core/requestCapsule.ts`; prompt rendering occurs only in the ModelDeck adapter. |
 | Context compiler | Deterministic priority/order selection, budget enforcement, exclusion provenance | Implemented for supplied candidates. Repository instruction, source, symbol, and failure collectors are future adapters. |
 | Tool broker | Capability selection, schema presentation, argument validation, approval boundary, and evidence reduction | Contracts and validation are implemented. The UI can list direct workspace entries, then read one bounded direct UTF-8 text file. |
 | Agent loop | Bounded inspect–reason–act–observe control, validation repairs, escalation, cancellation, and stop reasons | Implemented in `core/runtime.ts`. |
 | Diagnostics | Privacy-conscious inference metadata | JSONL diagnostics record no prompt, source content, tool arguments, raw output, terminal output, environment values, or credentials. |
-| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | The dedicated WayFinder Activity Bar sidebar is the owned-runtime surface; the Gate 0 provider remains separate in `compatibility/`. |
+| VS Code surfaces | User request, progress, final result, cancellation, diagnostics | The dedicated WayFinder Activity Bar sidebar uses a chat-style transcript and composer; rendered turns remain UI-only independent tasks. The Gate 0 provider remains separate in `compatibility/`. |
 
 ## Core contracts
 
@@ -73,6 +73,7 @@ The current implementation provides (1) and the foundation for (3). Condition (2
 2. **Gate 1b — safe observation (started):** bounded workspace listing and one direct UTF-8 text-file read are implemented. Language-service adapters, broader context collectors, and approval/resumption UI remain future work.
 3. **Gate 1c — model truth:** extend the recorded ModelDeck discovery snapshot with availability, streaming, cancellation telemetry, and authoritative limits/token counts where ModelDeck can provide them.
 4. **Gate 1d — evaluation:** `npm run eval:readback` is an opt-in live ModelDeck check of the fixed bounded-readback fixture under Fast, Deep, and Auto. For this fixture only, each inference with an exposed tool sets the standard OpenAI-compatible `tool_choice` value to `required`; ordinary sidebar tasks retain automatic tool choice. It asserts the list → read path and evidence coverage for Deep and Auto, then emits metadata-only tier, tool, validation, escalation, coverage-count, iteration, and latency results. The fixture is a first matched task; extend it before drawing broader routing conclusions.
+5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
 
 ## Gate 1d observed results
 
@@ -87,7 +88,12 @@ After ModelDeck capability rehearsal, the same fixture produced explicit HTTP 42
 After the local routes were configured to emit native structured tool calls, the evaluation passed its Deep and Auto acceptance criteria. Both followed the bounded `list_workspace_entries` then `read_workspace_text_file` path. Deep completed in three iterations and met evidence coverage directly. Auto began on Fast, recorded three deterministic insufficient-evidence validations, escalated to Deep, and completed with the required evidence coverage in five iterations.
 
 Fast also completed the safe tool path in three iterations but did not meet the evidence-coverage threshold. This is expected comparison evidence: the fixture requires Deep and Auto to pass, while Fast remains informative about the smaller model's limits. The measured end-to-end model latency was approximately 51 seconds for Deep and 29 seconds for Auto; this is operational evidence to consider before widening the runtime's scope.
-5. **Only after evidence:** consider bounded edits and terminal actions with separate approval controls. Do not add learned phase inference or unrestricted autonomy opportunistically.
+
+### Local route contract change — 28 August 2026
+
+After the local routes changed, all sidebar modes initially failed before inference. The Fast Gemma 4 general-chat Worker required an explicit deterministic `temperature`, while the Deep Qwen3.8 Vulkan Worker rejected the previous 1,024-token output request because its configured generation ceiling was 512. WayFinder now sends `temperature: 0`, defaults the estimated output budget to 512, preserves coarse HTTP status guidance in the UI, and captures a ModelDeck discovery snapshot after rejected completions.
+
+The matched live readback then completed the bounded list → read path in three iterations for Fast, Deep, and Auto. Fast and Auto met evidence coverage in about four seconds. Deep completed in about 49 seconds but did not meet evidence coverage with the current adaptive-thinking route, so the overall evaluation remains failing; this is model/runtime quality evidence rather than a transport failure.
 
 ## Open questions and risks
 

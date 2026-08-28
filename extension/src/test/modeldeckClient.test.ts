@@ -54,6 +54,7 @@ test('ModelDeck requests include the configured output-token budget', async () =
         },
       }],
       tool_choice: 'required',
+      temperature: 0,
       max_tokens: 4_096,
       stream: false,
     });

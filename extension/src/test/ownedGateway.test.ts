@@ -47,6 +47,7 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
 
     assert.deepEqual(response, { kind: 'final', text: 'Done.' });
     assert.equal(body?.model, 'fast-local');
+    assert.equal(body?.temperature, 0);
     assert.equal(body?.max_tokens, 9);
     assert.deepEqual(body?.tools, [{
       type: 'function',
@@ -73,6 +74,40 @@ test('owned ModelDeck gateway renders only the compact capsule at the wire bound
       inputBudget: { limit: 25, countKind: 'estimate' },
       outputBudget: { limit: 9, countKind: 'estimate' },
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('owned ModelDeck gateway retains discovery metadata after a rejected completion', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    if (String(input).endsWith('/models')) {
+      return new Response(JSON.stringify({ data: [{ id: 'fast-local', modeldeck: {
+        route: { public_model_id: 'fast-local' },
+        primary_worker: { worker_id: 'fast-worker', runtime: 'general-chat' },
+        selected_worker: { worker_id: 'fast-worker', runtime: 'general-chat' },
+        selection_reason: 'primary_ready',
+      } }] }), { status: 200 });
+    }
+    return new Response('{}', { status: 422 });
+  };
+
+  try {
+    const gateway = new ModelDeckOwnedGateway({
+      baseUrl: 'http://127.0.0.1:8600/v1',
+      fastModel: 'fast-local',
+      deepModel: 'deep-local',
+    });
+    const capsule = compileRequestCapsule({
+      state: createExecutionState('Inspect the workspace'),
+      candidates: [],
+      tools: [],
+      requestedDecision: 'Respond.',
+    });
+
+    await assert.rejects(gateway.complete(capsule, new AbortController().signal), /HTTP 422/);
+    assert.equal(gateway.discoveryMetadata()?.selectedWorker?.workerId, 'fast-worker');
   } finally {
     globalThis.fetch = originalFetch;
   }
