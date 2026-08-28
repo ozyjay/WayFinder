@@ -112,7 +112,7 @@ function outcomeUpdate(outcome: LoopOutcome): Omit<OwnedTaskUpdate, 'taskId'> {
   }
   if (outcome.kind === 'cancelled') return { state: 'cancelled', modelTier: outcome.state.modelTier, message: 'WayFinder cancelled the task.' };
   if (outcome.kind === 'stopped') return { state: 'stopped', modelTier: outcome.state.modelTier, message: 'WayFinder stopped safely at the iteration limit.' };
-  return { state: 'failed', modelTier: outcome.state.modelTier, message: 'WayFinder stopped after repeated invalid tool requests.' };
+  return { state: 'failed', modelTier: outcome.state.modelTier, message: 'WayFinder stopped after repeated invalid or unsuccessful tool requests.' };
 }
 
 function labelTier(tier: ExecutionState['modelTier']): string {
@@ -121,7 +121,7 @@ function labelTier(tier: ExecutionState['modelTier']): string {
 
 function taskErrorMessage(error: unknown, mode: ExecutionMode): string {
   if (error instanceof ToolExecutionError) {
-    const policy = mode === 'auto' ? ' Auto currently escalates validation failures, not tool-execution failures.' : '';
+    const policy = mode === 'auto' ? ' Auto does not retry operational filesystem failures.' : '';
     return `WayFinder could not complete this task. ${error.safeMessage}${policy}`;
   }
   if (error instanceof ModelDeckError && error.status) {
@@ -142,13 +142,17 @@ function taskTraceEvent(event: LoopTraceEvent): OwnedTaskTraceEvent {
     return { iteration: event.iteration, kind: 'working', message: `${tier} inference started.` };
   }
   if (event.kind === 'final-response') {
-    return { iteration: event.iteration, kind: 'success', message: `${tier} returned a final response.` };
+    const sanitised = event.removedControlTokens?.length
+      ? ` Removed leaked backend terminator${event.removedControlTokens.length === 1 ? '' : 's'}: ${event.removedControlTokens.join(', ')}.`
+      : '';
+    return { iteration: event.iteration, kind: sanitised ? 'warning' : 'success', message: `${tier} returned a final response.${sanitised}` };
   }
   if (event.kind === 'backend-failed') {
     return { iteration: event.iteration, kind: 'error', message: `${tier} failed in the local model backend.` };
   }
   if (event.kind === 'tool-requested') {
-    return { iteration: event.iteration, kind: 'working', message: `${tier} requested ${toolLabel(event.toolId)}.` };
+    const details = event.debugArguments === undefined ? '' : ` with arguments ${event.debugArguments}`;
+    return { iteration: event.iteration, kind: 'working', message: `${tier} requested ${toolLabel(event.toolId)}${details}.` };
   }
   if (event.kind === 'tool-completed') {
     return { iteration: event.iteration, kind: 'success', message: `${toolLabel(event.toolId)} completed.` };

@@ -114,6 +114,11 @@
           "minimum": 1,
           "multipleOf": 1,
           "description": "Maximum bounded-loop iterations for an owned WayFinder task."
+        },
+        "wayfinder.runtime.showToolArgumentsInDebugTrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Development only: show length-bounded tool arguments in the ephemeral sidebar debug trace. This may reveal workspace filenames or other sensitive values; arguments are never added to persisted diagnostics."
         }
       }
     }

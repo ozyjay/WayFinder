@@ -112,3 +112,32 @@ test('owned ModelDeck gateway retains discovery metadata after a rejected comple
     globalThis.fetch = originalFetch;
   }
 });
+
+test('owned ModelDeck gateway reports sanitised backend terminators without returning them', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => String(input).endsWith('/models')
+    ? new Response(JSON.stringify({ data: [] }), { status: 200 })
+    : new Response(JSON.stringify({ choices: [{ message: { content: 'Listed Readme.md<turn|>', tool_calls: [] } }] }), { status: 200 });
+
+  try {
+    const gateway = new ModelDeckOwnedGateway({
+      baseUrl: 'http://127.0.0.1:8600/v1',
+      fastModel: 'fast-local',
+      deepModel: 'deep-local',
+    });
+    const capsule = compileRequestCapsule({
+      state: createExecutionState('List the workspace'),
+      candidates: [],
+      tools: [],
+      requestedDecision: 'Respond.',
+    });
+
+    assert.deepEqual(await gateway.complete(capsule, new AbortController().signal), {
+      kind: 'final',
+      text: 'Listed Readme.md',
+      removedControlTokens: ['<turn|>'],
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -6,7 +6,7 @@ import { ToolExecutionError, ToolExecutionFailureCode, ToolExecutionResult, Tool
 import type { ModelDeckDiscoveryMetadata } from '../modeldeck/client';
 
 export type ModelResponse =
-  | { readonly kind: 'final'; readonly text: string }
+  | { readonly kind: 'final'; readonly text: string; readonly removedControlTokens?: readonly string[] }
   | { readonly kind: 'tool-request'; readonly request: ToolRequest }
   | { readonly kind: 'unsupported'; readonly reason: string };
 
@@ -30,34 +30,38 @@ export interface LoopOptions {
   readonly executionMode: ExecutionMode;
   readonly escalation: EscalationPolicy;
   readonly approval: ApprovalPolicy;
+  /** Explicit development aid. Arguments remain ephemeral and are length-bounded. */
+  readonly exposeToolArgumentsInTrace?: boolean;
 }
 
-export type LoopTraceEvent = {
-  readonly kind: 'inference-started' | 'final-response' | 'backend-failed';
+interface LoopTraceEventBase {
   readonly iteration: number;
   readonly modelTier: ExecutionState['modelTier'];
-} | {
-  readonly kind: 'tool-requested' | 'tool-completed';
-  readonly iteration: number;
-  readonly modelTier: ExecutionState['modelTier'];
+}
+
+export type LoopTraceEvent = (LoopTraceEventBase & {
+  readonly kind: 'inference-started' | 'backend-failed';
+}) | (LoopTraceEventBase & {
+  readonly kind: 'final-response';
+  readonly removedControlTokens?: readonly string[];
+}) | (LoopTraceEventBase & {
+  readonly kind: 'tool-requested';
   readonly toolId: string;
-} | {
+  readonly debugArguments?: string;
+}) | (LoopTraceEventBase & {
+  readonly kind: 'tool-completed';
+  readonly toolId: string;
+}) | (LoopTraceEventBase & {
   readonly kind: 'tool-failed';
-  readonly iteration: number;
-  readonly modelTier: ExecutionState['modelTier'];
   readonly toolId: string;
   readonly failureCode: ToolExecutionFailureCode | 'unexpected';
   readonly safeMessage: string;
-} | {
+}) | (LoopTraceEventBase & {
   readonly kind: 'validation-rejected';
-  readonly iteration: number;
-  readonly modelTier: ExecutionState['modelTier'];
   readonly validationCode: InferenceDiagnostic['validationCode'];
-} | {
+}) | (LoopTraceEventBase & {
   readonly kind: 'escalated';
-  readonly iteration: number;
-  readonly modelTier: ExecutionState['modelTier'];
-};
+});
 
 export interface LoopInput {
   readonly initialState: ExecutionState;
@@ -119,7 +123,12 @@ export class BoundedAgentLoop {
       if (signal.aborted) return this.cancel(state, iteration);
 
       if (response.kind === 'final') {
-        input.onTrace?.({ kind: 'final-response', iteration, modelTier: state.modelTier });
+        input.onTrace?.({
+          kind: 'final-response',
+          iteration,
+          modelTier: state.modelTier,
+          ...(response.removedControlTokens?.length ? { removedControlTokens: response.removedControlTokens } : {}),
+        });
         const finalValidation = this.options.executionMode === 'auto'
           ? validateEvidenceCoverage(capsule, response.text)
           : undefined;
@@ -154,7 +163,15 @@ export class BoundedAgentLoop {
       }
 
       if (response.kind === 'tool-request') {
-        input.onTrace?.({ kind: 'tool-requested', iteration, modelTier: state.modelTier, toolId: response.request.toolId });
+        input.onTrace?.({
+          kind: 'tool-requested',
+          iteration,
+          modelTier: state.modelTier,
+          toolId: response.request.toolId,
+          ...(this.options.exposeToolArgumentsInTrace
+            ? { debugArguments: renderDebugArguments(response.request.arguments) }
+            : {}),
+        });
         const validation = this.tools.validate(response.request, state);
         if (!validation.valid) {
           const next = this.addEvidence(state, {
@@ -210,6 +227,34 @@ export class BoundedAgentLoop {
             toolId: validation.tool.id,
             ...failure,
           });
+          if (isRecoverableToolFailure(error)) {
+            const next = transitionExecutionState(acting, 'observing', 'active', {
+              nextAction: undefined,
+              evidence: [...acting.evidence, {
+                id: `validation-${iteration}`,
+                type: 'validation',
+                summary: error.safeMessage,
+                provenance: 'recoverable-tool-error',
+              }],
+            });
+            await this.record(capsule, next, latencyMs, 'validation-rejected', 'recoverable-tool-error');
+            input.onTrace?.({ kind: 'validation-rejected', iteration, modelTier: state.modelTier, validationCode: 'recoverable-tool-error' });
+            validationFailures += 1;
+            const terminal = await this.maybeEscalate(next, capsule, latencyMs, validationFailures, repairsAtTier, 'recoverable-tool-error');
+            if (terminal.kind === 'escalated') {
+              state = terminal.state;
+              input.onTrace?.({ kind: 'escalated', iteration, modelTier: state.modelTier });
+              repairsAtTier = 0;
+              continue;
+            }
+            repairsAtTier += 1;
+            if (validationFailures >= this.options.escalation.maximumValidationFailures) {
+              const failed = transitionExecutionState(next, 'failed', 'failed');
+              return { kind: 'failed', state: failed, reason: 'validation-limit' };
+            }
+            state = next;
+            continue;
+          }
           await this.recordFailure(capsule, acting, Math.round(performance.now() - startedAt), 'tool-execution-error');
           throw error;
         }
@@ -382,6 +427,22 @@ function safeToolFailure(error: unknown): { readonly failureCode: ToolExecutionF
     return { failureCode: error.code, safeMessage: error.safeMessage };
   }
   return { failureCode: 'unexpected', safeMessage: 'The tool failed unexpectedly.' };
+}
+
+function isRecoverableToolFailure(error: unknown): error is ToolExecutionError {
+  return error instanceof ToolExecutionError && (error.code === 'file-not-found' || error.code === 'invalid-target');
+}
+
+function renderDebugArguments(value: unknown): string {
+  const maximumLength = 500;
+  let rendered: string;
+  try {
+    rendered = JSON.stringify(value);
+  } catch {
+    rendered = '[unserialisable arguments]';
+  }
+  if (rendered === undefined) rendered = 'undefined';
+  return rendered.length <= maximumLength ? rendered : `${rendered.slice(0, maximumLength - 1)}…`;
 }
 
 export const denyConsequentialActions: ApprovalPolicy = {

@@ -22,7 +22,7 @@ export interface InferenceDiagnostic {
   readonly stablePrefixId: string;
   readonly latencyMs: number;
   readonly outcome: 'final' | 'tool-request' | 'validation-rejected' | 'approval-required' | 'cancelled' | 'stopped' | 'failed';
-  readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response' | 'insufficient-evidence-coverage';
+  readonly validationCode?: 'unknown-tool' | 'malformed-arguments' | 'unsupported-response' | 'insufficient-evidence-coverage' | 'recoverable-tool-error';
   /** Coarse operational category; deliberately excludes backend and filesystem details. */
   readonly failureCode?: 'backend-error' | 'tool-execution-error';
   readonly escalation?: 'fast-to-deep';

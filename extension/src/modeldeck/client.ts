@@ -27,6 +27,7 @@ export interface ModelDeckRequest {
 export interface ModelDeckResponse {
   readonly text: string;
   readonly toolCalls: readonly OpenAiToolCall[];
+  readonly removedControlTokens?: readonly string[];
 }
 
 export interface ModelDeckSettings {
@@ -103,9 +104,11 @@ export class ModelDeckClient {
       throw new ModelDeckError('ModelDeck response did not include a completion message.');
     }
 
+    const normalised = normaliseCompletionText(typeof message.content === 'string' ? message.content : '');
     return {
-      text: typeof message.content === 'string' ? message.content : '',
+      text: normalised.text,
       toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+      ...(normalised.removedControlTokens.length ? { removedControlTokens: normalised.removedControlTokens } : {}),
     };
   }
 
@@ -140,6 +143,32 @@ interface OpenAiCompletion {
 
 function normaliseBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
+}
+
+const CHAT_TEMPLATE_CONTROL_TOKENS = [
+  '<turn|>',
+  '<|turn|>',
+  '<end_of_turn>',
+  '<|end_of_turn|>',
+  '<|im_end|>',
+] as const;
+
+/** Removes only known chat-template terminators leaked at the end of local-model text. */
+export function normaliseCompletionText(text: string): { readonly text: string; readonly removedControlTokens: readonly string[] } {
+  let value = text.trimEnd();
+  const removedControlTokens: string[] = [];
+  let removed = true;
+  while (removed) {
+    removed = false;
+    for (const token of CHAT_TEMPLATE_CONTROL_TOKENS) {
+      if (!value.endsWith(token)) continue;
+      value = value.slice(0, -token.length).trimEnd();
+      removedControlTokens.push(token);
+      removed = true;
+      break;
+    }
+  }
+  return { text: value, removedControlTokens };
 }
 
 /** Parses both clarified and legacy `/v1/models` ModelDeck records. */

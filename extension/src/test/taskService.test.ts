@@ -74,18 +74,24 @@ test('owned task service exposes privacy-safe live trace events and an actionabl
   const service = new OwnedTaskService(() => ({
     async run(input) {
       input.onTrace?.({ kind: 'inference-started', iteration: 1, modelTier: 'fast' });
-      input.onTrace?.({ kind: 'tool-requested', iteration: 1, modelTier: 'fast', toolId: 'read_workspace_text_file' });
+      input.onTrace?.({
+        kind: 'tool-requested',
+        iteration: 1,
+        modelTier: 'fast',
+        toolId: 'read_workspace_text_file',
+        debugArguments: '{"path":"README.md"}',
+      });
       input.onTrace?.({
         kind: 'tool-failed',
         iteration: 1,
         modelTier: 'fast',
         toolId: 'read_workspace_text_file',
-        failureCode: 'file-not-found',
-        safeMessage: 'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+        failureCode: 'filesystem-error',
+        safeMessage: 'The requested workspace file could not be read.',
       });
       throw new ToolExecutionError(
-        'file-not-found',
-        'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+        'filesystem-error',
+        'The requested workspace file could not be read.',
         new Error('Private path: /workspace/readme'),
       );
     },
@@ -96,10 +102,10 @@ test('owned task service exposes privacy-safe live trace events and an actionabl
 
   assert.deepEqual(updates.flatMap((update) => update.traceEvent?.message ?? []), [
     'Fast inference started.',
-    'Fast requested workspace file read (read_workspace_text_file).',
-    'workspace file read (read_workspace_text_file) failed: The requested workspace file was not found. Use the exact filename from the workspace listing.',
+    'Fast requested workspace file read (read_workspace_text_file) with arguments {"path":"README.md"}.',
+    'workspace file read (read_workspace_text_file) failed: The requested workspace file could not be read.',
   ]);
-  assert.match(updates.at(-1)?.message ?? '', /Auto currently escalates validation failures, not tool-execution failures/);
+  assert.match(updates.at(-1)?.message ?? '', /Auto does not retry operational filesystem failures/);
   assert.equal(JSON.stringify(updates).includes('/workspace/readme'), false);
 });
 

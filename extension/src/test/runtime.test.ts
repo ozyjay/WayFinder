@@ -351,8 +351,8 @@ test('a tool-execution failure is recorded without retaining tool details', asyn
   const failingExecutor: ToolExecutor = {
     async execute() {
       throw new ToolExecutionError(
-        'file-not-found',
-        'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+        'filesystem-error',
+        'The requested workspace file could not be read.',
         new Error('Filesystem failure at parser.test.ts.'),
       );
     },
@@ -378,7 +378,7 @@ test('a tool-execution failure is recorded without retaining tool details', asyn
       requestedDecision: 'Inspect.',
       onTrace: (event) => trace.push(event),
     }, new AbortController().signal),
-    /requested workspace file was not found/,
+    /requested workspace file could not be read/,
   );
   assert.deepEqual(diagnostics.entries.map((entry) => ({ outcome: entry.outcome, phase: entry.phase, failureCode: entry.failureCode })), [{
     outcome: 'failed', phase: 'failed', failureCode: 'tool-execution-error',
@@ -392,11 +392,57 @@ test('a tool-execution failure is recorded without retaining tool details', asyn
       iteration: 1,
       modelTier: 'fast',
       toolId: 'workspace.readFile',
-      failureCode: 'file-not-found',
-      safeMessage: 'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+      failureCode: 'filesystem-error',
+      safeMessage: 'The requested workspace file could not be read.',
     },
   ]);
   assert.equal(JSON.stringify(trace).includes('parser.test.ts'), false);
+});
+
+test('Auto repairs recoverable file-selection failures and escalates Fast to Deep', async () => {
+  const gateway = new SequenceGateway([
+    { kind: 'tool-request', request: { toolId: 'workspace.readFile', arguments: { path: 'README.md' } } },
+    { kind: 'tool-request', request: { toolId: 'workspace.readFile', arguments: { path: 'readme' } } },
+    { kind: 'final', text: 'Deep used the corrected filename.' },
+  ]);
+  const diagnostics = new InMemoryDiagnostics();
+  const failingExecutor: ToolExecutor = {
+    async execute() {
+      throw new ToolExecutionError(
+        'file-not-found',
+        'The requested workspace file was not found. Use the exact filename from the workspace listing.',
+      );
+    },
+  };
+  const trace: unknown[] = [];
+  const controller = new BoundedAgentLoop(
+    gateway,
+    readRegistry(),
+    failingExecutor,
+    diagnostics,
+    {
+      maxIterations: 3,
+      executionMode: 'auto',
+      escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 3 },
+      approval: { decide: () => 'approved' },
+      exposeToolArgumentsInTrace: true,
+    },
+  );
+
+  const outcome = await controller.run({
+    initialState: state(['workspace.read']),
+    context: [],
+    requestedDecision: 'Inspect.',
+    onTrace: (event) => trace.push(event),
+  }, new AbortController().signal);
+
+  assert.equal(outcome.kind, 'completed');
+  assert.deepEqual(gateway.capsules.map((capsule) => capsule.modelTier), ['fast', 'fast', 'deep']);
+  assert.equal(diagnostics.entries.filter((entry) => entry.validationCode === 'recoverable-tool-error').length, 3);
+  assert.equal(diagnostics.entries.some((entry) => entry.escalation === 'fast-to-deep'), true);
+  assert.equal(JSON.stringify(diagnostics.entries).includes('README.md'), false);
+  assert.equal(JSON.stringify(trace).includes('README.md'), true);
+  assert.equal(JSON.stringify(trace).includes('"debugArguments":"{\\"path\\":\\"readme\\"}"'), true);
 });
 
 test('validation repairs escalate Fast to Deep under the explicit policy', async () => {

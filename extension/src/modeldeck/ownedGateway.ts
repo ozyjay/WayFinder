@@ -46,7 +46,11 @@ export class ModelDeckOwnedGateway implements ModelGateway {
         return { kind: 'unsupported', reason: `Tool '${call.function.name}' returned invalid JSON arguments.` };
       }
     }
-    return { kind: 'final', text: response.text };
+    return {
+      kind: 'final',
+      text: response.text,
+      ...(response.removedControlTokens?.length ? { removedControlTokens: response.removedControlTokens } : {}),
+    };
   }
 
   public discoveryMetadata(): ModelDeckDiscoveryMetadata | undefined {
@@ -103,5 +107,6 @@ function ownedRuntimeInstructions(): string {
     'A workspace-entry listing identifies names only. If it is insufficient and a text-file read tool is available, call that tool rather than guessing. Do not claim to have read a file unless its contents are present in supplied evidence.',
     'When source text is supplied as evidence, retain enough distinctive source terms for the answer to be auditable.',
     'When the capsule requires a tool request and tools are supplied, call exactly one supplied tool instead of returning a final answer.',
+    'Return only response content. Do not emit speaker labels, role prefixes, or chat-template control tokens.',
   ].join(' ');
 }

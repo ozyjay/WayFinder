@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findDiscoveryMetadata, ModelDeckClient } from '../modeldeck/client';
+import { findDiscoveryMetadata, ModelDeckClient, normaliseCompletionText } from '../modeldeck/client';
 
 test('ModelDeck requests include the configured output-token budget', async () => {
   const originalFetch = globalThis.fetch;
@@ -62,6 +62,21 @@ test('ModelDeck requests include the configured output-token budget', async () =
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('known leaked chat-template terminators are removed only from the end of completion text', () => {
+  assert.deepEqual(normaliseCompletionText('TestWayFinder: Readme.md<turn|>'), {
+    text: 'TestWayFinder: Readme.md',
+    removedControlTokens: ['<turn|>'],
+  });
+  assert.deepEqual(normaliseCompletionText('Answer<|im_end|>\n<end_of_turn>\n'), {
+    text: 'Answer',
+    removedControlTokens: ['<end_of_turn>', '<|im_end|>'],
+  });
+  assert.deepEqual(normaliseCompletionText('Discuss <turn|> as literal text.'), {
+    text: 'Discuss <turn|> as literal text.',
+    removedControlTokens: [],
+  });
 });
 
 test('discovery records configured identity and primary-ready routing state separately', () => {

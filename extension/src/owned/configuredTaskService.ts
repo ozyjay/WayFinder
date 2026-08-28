@@ -31,6 +31,7 @@ export function createConfiguredTaskService(
       executionMode: mode,
       escalation: { repairAttemptsBeforeEscalation: 1, maximumValidationFailures: 3 },
       approval: denyConsequentialActions,
+      exposeToolArgumentsInTrace: configuration.get<boolean>('runtime.showToolArgumentsInDebugTrace', false),
     },
   ), (goal, mode) => createExecutionState(goal, {
     modelTier: mode === 'deep' ? 'deep' : 'fast',
